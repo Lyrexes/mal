@@ -2,6 +2,9 @@
 #include "types.hpp"
 
 
+Environment::Environment(Maybe<const Environment*> outer, std::span<Pair_t> pairs)
+: outer(outer) , data(pairs.begin(), pairs.end()){}
+
 void Environment::set(std::string key, MalType value) {
     data.insert_or_assign(key, value);
 }

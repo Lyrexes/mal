@@ -19,7 +19,7 @@ std::string REP(std::string arg, const char* regex, bool readably, Env& env);
 int main() {
     auto regex = R"([\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*))";
     auto readably = true;
-    auto repl_env = Environment({});
+    auto repl_env = Environment({}, {});
     repl_env.set("+", Builtin(Types::add_num));
     repl_env.set("-", Builtin(Types::sub_num));
     repl_env.set("*", Builtin(Types::mul_num));

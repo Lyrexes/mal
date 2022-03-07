@@ -67,7 +67,7 @@ namespace Eval {
         auto bind_list = get_container_view(args[1]);
         if(bind_list.size() % 2 != 0)
             throw std::runtime_error("expected even number of arguments in let binding list!");
-        auto let_env = Environment(&env);
+        auto let_env = Environment(&env, {});
         for(std::size_t i = 0; i < bind_list.size(); i+=2) {
             auto value = eval(bind_list[i+1], let_env);
             let_env.set(std::get<std::string>(bind_list[i].val), value);

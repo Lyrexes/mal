@@ -8,8 +8,9 @@ class Environment {
     using MalType = Types::MalType;
     template <typename T>
     using Maybe = std::optional<T>;
+    using Pair_t = std::pair<std::string, MalType>;
     public:
-        explicit Environment(Maybe<const Environment*> outer) : outer(outer) {};
+        Environment(Maybe<const Environment*> outer, std::span<Pair_t> pairs);
         void set(std::string key, MalType value);
         Maybe<const Environment*> find(std::string_view name) const;
         MalType get(std::string_view name) const;
