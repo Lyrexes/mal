@@ -1,0 +1,11 @@
+env.o: env.cpp env.hpp types.hpp
+eval.o: eval.cpp eval.hpp types.hpp env.hpp
+printer.o: printer.cpp printer.hpp types.hpp
+reader.o: reader.cpp reader.hpp types.hpp
+step0_repl.o: step0_repl.cpp
+step1_read_print.o: step1_read_print.cpp reader.hpp types.hpp printer.hpp
+step2_eval.o: step2_eval.cpp reader.hpp types.hpp printer.hpp env.hpp \
+ eval.hpp
+step3_env.o: step3_env.cpp env.hpp types.hpp reader.hpp printer.hpp \
+ eval.hpp
+types.o: types.cpp types.hpp
