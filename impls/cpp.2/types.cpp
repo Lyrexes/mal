@@ -22,6 +22,8 @@ namespace Types {
                 return "nil";
             case TypeID::KEYWORD:
                 return std::string(":") + std::get<std::string>(type.val);
+            case TypeID::LAMBDA:
+                return "#<function>";
             default:
                 return "";
         }
@@ -148,7 +150,7 @@ namespace Types {
     }
 
     MalType Nil() { 
-        return MalType(TypeID::NIL);
+        return MalType();
     }
 
     MalType Keyword(std::string kw) {
@@ -156,11 +158,15 @@ namespace Types {
     }
 
     MalType Builtin(Builtin_t builtin) {
-        return MalType(builtin);
+        return MalType(TypeID::BUILTIN, std::move(builtin));
+    }
+
+    MalType Lambda(Container params, Container body, const Environment* env) {
+        return MalType(TypeID::LAMBDA, Lambda_t(std::move(params), std::move(body), env));
     }
 
     void type_error(std::string&& expected, std::string&& got) {
-        throw new std::runtime_error("TypeError: expected type: " + expected + ", got: " + got);
+        throw std::runtime_error("TypeError: expected type: " + expected + ", got: " + got);
     }
 
     long get_int(const MalType& type) {

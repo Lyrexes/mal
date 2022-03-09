@@ -1,4 +1,5 @@
 #include "reader.hpp"
+#include "types.hpp"
 
 namespace Parser {
 
@@ -37,7 +38,7 @@ namespace Parser {
     }
 
     MalType read_hashmap(Reader &tokens) {
-        Types::Map_t map{};
+        Map_t map{};
         tokens.pop(); // pops delim '{'
         while(tokens.peek() != "}") {
             if(tokens.eof())
@@ -78,7 +79,7 @@ namespace Parser {
 
     MalType read_macro(Reader& tokens) {
         auto sym = Types::Symbol(Reader::macros.at((tokens.next())));
-        return Types::List(Types::Container{sym, read_form(tokens)});
+        return Types::List(Container{sym, read_form(tokens)});
     }
     
     MalType read_meta(Reader& tokens) {
@@ -86,11 +87,11 @@ namespace Parser {
         tokens.pop();
         auto meta = read_form(tokens);
         auto value = read_form(tokens);
-        return Types::List(Types::Container{sym, value, meta});
+        return Types::List(Container{sym, value, meta});
     }
 
     MalType read_container(Reader &tokens, TypeID type) {
-        Types::Container mal_container;
+        Container mal_container;
         std::string end_delim;
 
         if(type == TypeID::LIST)

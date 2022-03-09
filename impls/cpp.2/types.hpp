@@ -6,52 +6,62 @@
 #include <string>
 #include <numeric>
 #include <span>
+#include <algorithm>
 #include <functional>
 #include <optional>
 #include <map>
 #include <cmath>
 #include <stdexcept>
 
+struct MalType;
+struct Environment;
 
+enum class TypeID {
+    FLOAT,
+    INT,
+    BOOL, 
+    LIST,
+    VECTOR,
+    MAP,
+    NIL,
+    SYMBOL,
+    STRING,
+    KEYWORD,
+    BUILTIN,
+    LAMBDA
+};
+
+using Null = std::monostate;
+using Container = std::vector<MalType>;
+using Map_t = std::map<MalType, MalType>;
+using Builtin_t = std::function<MalType(std::span<const MalType> args)>;
+
+struct Lambda_t {
+    Container params;
+    Container body;
+    const Environment* env;
+    Lambda_t(Container parameter, Container body, const Environment* env)
+        :  params(parameter), body(body), env(env) {}
+};
+
+template <class T>
+using Maybe = std::optional<T>;
+using DataType = std::variant<double, bool, Container, Map_t, std::string,Null>;
+using Functor  = std::variant<Builtin_t, Lambda_t, Null>;
+
+struct MalType {
+    TypeID id;
+    DataType val{};
+    Functor func{};
+    MalType() : id(TypeID::NIL) {}
+    MalType(TypeID id, Functor func) 
+        : id(id), func(std::move(func)) {}
+    MalType(TypeID id, DataType val)
+        : id(id), val(std::move(val)) {}
+    bool operator <(const MalType& rhs) const { return val < rhs.val; }
+};
 namespace Types {
     using namespace std;
-    enum class TypeID {
-        FLOAT,
-        INT,
-        BOOL, 
-        LIST,
-        VECTOR,
-        MAP,
-        NIL,
-        SYMBOL,
-        STRING,
-        KEYWORD,
-        BUILTIN,
-        VOID
-    };
-    struct MalType;
-    using Null = std::monostate;
-    using Container = std::vector<MalType>;
-    using Map_t = std::map<MalType, MalType>;
-    using Builtin_t = std::function<MalType(std::span<const MalType> args)>;
-    template <class T>
-    using Maybe = std::optional<T>;
-    using Type = std::variant<double, bool, Container, Map_t, string, Null>;
-    
-
-    struct MalType {
-        TypeID id;
-        Type val{};
-        Maybe<Builtin_t> builtin{};
-        MalType() : id(TypeID::VOID) {}
-        explicit MalType(TypeID id) : id(id) {}
-        MalType(TypeID id, Type&& val)
-            : id(id), val(std::move(val)) {}
-        explicit MalType(Builtin_t val)
-            : id(TypeID::BUILTIN), builtin(std::move(val)) {}
-        bool operator <(const MalType& rhs) const { return val < rhs.val; }
-    };
-
     string to_string(const MalType& type, bool readably);
     string to_string(std::span<const MalType> container, TypeID type, bool readably);
     string to_string(const Map_t& hashmap, bool readably);
@@ -90,6 +100,7 @@ namespace Types {
     MalType Nil();
     MalType Keyword(std::string kw);
     MalType Builtin(Builtin_t builtin);
+    MalType Lambda(Container params, Container body, const Environment* env);
 
     void type_error(std::string&& expected, std::string&& got);
 

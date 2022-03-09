@@ -4,11 +4,13 @@
 #include <optional>
 #include "reader.hpp"
 #include "printer.hpp"
+#include "types.hpp"
 
+using namespace Types;
 std::optional<std::string> INPUT(std::string_view prompt);
-Types::MalType READ(std::string input, const char* regex);
-Types::MalType EVAL(Types::MalType ast);
-std::string PRINT(const Types::MalType& result, bool readably);
+MalType READ(std::string input, const char* regex);
+MalType EVAL(MalType ast);
+std::string PRINT(const MalType& result, bool readably);
 std::string REP(std::string arg, const char* regex, bool readably);
 
 int main() {
@@ -29,7 +31,7 @@ std::string REP(std::string arg, const char* regex, bool readably) {
     return PRINT(EVAL(READ(std::move(arg), regex)), readably);
 }
 
-Types::MalType READ(std::string input, const char* regex) {
+MalType READ(std::string input, const char* regex) {
     return Parser::read_str(std::move(input), regex);
 }
 
@@ -44,10 +46,10 @@ std::optional<std::string> INPUT(std::string_view prompt) {
     return result;
 }
 
-Types::MalType EVAL(Types::MalType ast) {
+MalType EVAL(MalType ast) {
     return ast;
 }
 
-std::string PRINT(const Types::MalType &result, bool readably) {
+std::string PRINT(const MalType &result, bool readably) {
     return Printer::pr_str(result, readably);
 }

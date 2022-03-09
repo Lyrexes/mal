@@ -8,11 +8,11 @@
 #include <exception>
 #include <stdexcept>
 #include <optional>
-#include "types.hpp"
+
+class MalType;
+enum class TypeID;
 
 namespace Parser {
-    using MalType = Types::MalType;
-    using TypeID  = Types::TypeID;
     using Tokens  = std::vector<std::string>;
     using Table  = std::map<std::string, std::string>;
     class Reader {

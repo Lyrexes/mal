@@ -8,18 +8,18 @@
 #include "types.hpp"
 #include "eval.hpp"
 
-using MalType = Types::MalType;
+using namespace Types;
 using Env = Environment;
 std::optional<std::string> INPUT(std::string_view prompt);
-Types::MalType READ(std::string input, const char* regex);
-Types::MalType EVAL(Types::MalType ast, Env& env);
-std::string PRINT(const Types::MalType& result, bool readably);
+MalType READ(std::string input, const char* regex);
+MalType EVAL(MalType ast, Env& env);
+std::string PRINT(const MalType& result, bool readably);
 std::string REP(std::string arg, const char* regex, bool readably, Env& env);
 
 int main() {
     auto regex = R"([\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*))";
     auto readably = true;
-    auto repl_env = Environment({}, {});
+    auto repl_env = Environment();
     repl_env.set("+", Builtin(Types::add_num));
     repl_env.set("-", Builtin(Types::sub_num));
     repl_env.set("*", Builtin(Types::mul_num));
@@ -38,7 +38,7 @@ std::string REP(std::string arg, const char* regex, bool readably, Env& env) {
     return PRINT(EVAL(READ(std::move(arg), regex), env), readably);
 }
 
-Types::MalType READ(std::string input, const char* regex) {
+MalType READ(std::string input, const char* regex) {
     return Parser::read_str(std::move(input), regex);
 }
 
@@ -53,10 +53,10 @@ std::optional<std::string> INPUT(std::string_view prompt) {
     return result;
 }
 
-std::string PRINT(const Types::MalType &result, bool readably) {
+std::string PRINT(const MalType &result, bool readably) {
     return Printer::pr_str(result, readably);
 }
 
-Types::MalType EVAL(Types::MalType ast, Env& env) {
+MalType EVAL(MalType ast, Env& env) {
     return Eval::eval(ast, env);
 }
