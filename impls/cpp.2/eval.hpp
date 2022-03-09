@@ -16,7 +16,7 @@ namespace Eval {
     MalType apply_do(std::span<const MalType> args, Environment& env);
     MalType apply_if(std::span<const MalType> args, Environment& env);
     MalType apply_let(std::span<const MalType> args, Environment& env);
-    MalType apply_builtin(std::span<const MalType> args, Environment& env);
+    MalType apply(std::span<const MalType> args, Environment& env);
 }
 
 #endif

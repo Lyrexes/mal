@@ -13,6 +13,7 @@ namespace Eval {
             auto list = get_container_view(ast);
             if(list.empty())
                 return ast;
+            /**
             if(list.front().id == TypeID::LIST) {
                 auto result =  eval(list.front(), env);
                 if(result.id != TypeID::LAMBDA)
@@ -21,21 +22,35 @@ namespace Eval {
                 new_list[0] = result;
                 return apply_lambda({new_list.begin(), new_list.end()}, env);
             }
-            auto first_sym = get_string_view(list.front());
-            if(first_sym == "def!") 
-                return apply_def(list, env); 
-            if(first_sym == "let*")
-                return apply_let(list, env); 
-            if(first_sym == "do*")
-                return apply_do(list, env); 
-            if(first_sym == "if")
-                return apply_if(list, env); 
-            if(first_sym == "fn*")
-                return create_lambda(list, env); 
-            return apply_builtin(get_container_view(eval_ast(ast, env)), env); //REFACTOR - apply 
+            **/
+            if(list.front().id == TypeID::SYMBOL) {
+                auto first_sym = get_string_view(list.front());
+                if(first_sym == "def!") 
+                    return apply_def(list, env); 
+                if(first_sym == "let*")
+                    return apply_let(list, env); 
+                if(first_sym == "do*")
+                    return apply_do(list, env); 
+                if(first_sym == "if")
+                    return apply_if(list, env); 
+                //if(first_sym == "fn*")
+                  //  return create_lambda(list, env); 
+            }
+            return apply(get_container_view(eval_ast(ast, env)), env); //REFACTOR 
         }
         std::cout << "eval_ast called \n";
         return eval_ast(ast, env);
+    }
+
+    MalType apply(std::span<const MalType> args, Environment& env) {
+        std::cout << "apply_builtin is called" << std::endl;
+        if(args.front().id == TypeID::BUILTIN) {
+            auto builtin = std::get<Builtin_t>(args.front().func);
+            return builtin({args.begin()+1, args.end()});
+        }
+        if(args.front().id == TypeID::LAMBDA)
+            return apply_lambda(args, env);
+        throw std::runtime_error("undefined symbol cant evaluate : " + Types::to_string(args.front(), true));
     }
 
     MalType create_lambda(std::span<const MalType> args, Environment& env) {
@@ -80,8 +95,12 @@ namespace Eval {
                 std::cout << "symbol called \n";
                 return env.get(get_string_view(ast));
             case TypeID::LIST:
-            case TypeID::VECTOR:
                 std::cout << "container called \n";
+                if(get_container_view(ast).front().id == TypeID::SYMBOL &&
+                    get_string_view(get_container_view(ast).front()) == "fn*")
+                    return create_lambda(get_container_view(ast), env); 
+                return eval_container(ast, env);
+            case TypeID::VECTOR:
                 return eval_container(ast, env);
             case TypeID::MAP:
                 return eval_map(ast, env);
@@ -104,16 +123,6 @@ namespace Eval {
         return Map(std::move(map));
     }
 
-    MalType apply_builtin(std::span<const MalType> args, Environment& env) {
-        std::cout << "apply_builtin is called" << std::endl;
-        if(args.front().id == TypeID::BUILTIN) {
-            auto builtin = std::get<Builtin_t>(args.front().func);
-            return builtin({args.begin()+1, args.end()});
-        }
-        if(args.front().id == TypeID::LAMBDA)
-            return apply_lambda(args, env);
-        throw std::runtime_error("undefined symbol cant evaluate : " + Types::to_string(args.front(), true));
-    }
 
     MalType apply_lambda(std::span<const MalType> args, Environment& env) { 
         std::cout << "apply_lambda is called" << std::endl;

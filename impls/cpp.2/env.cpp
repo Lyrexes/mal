@@ -30,13 +30,9 @@ MalType Environment::get(std::string_view name) const {
 std::string Environment::to_string() const {
     std::string env_str{"{"};
 
-    std::cout << "Environment: here" << std::endl;
-
     for(auto &[key, value] : data) {
-        std::cout << static_cast<int>(value.id) << std::endl;
         env_str += "(" + key + ", " + Types::to_string(value, true) + ")";
     }
-    std::cout << "hure" << std::endl;
     env_str += "} | ";
     auto cur_env = outer;
     while(auto out = cur_env) {
