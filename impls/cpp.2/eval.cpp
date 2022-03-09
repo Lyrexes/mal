@@ -33,8 +33,8 @@ namespace Eval {
                     return apply_do(list, env); 
                 if(first_sym == "if")
                     return apply_if(list, env); 
-                //if(first_sym == "fn*")
-                  //  return create_lambda(list, env); 
+                if(first_sym == "fn*")
+                    return create_lambda(list, env); 
             }
             return apply(get_container_view(eval_ast(ast, env)), env); //REFACTOR 
         }
@@ -43,14 +43,21 @@ namespace Eval {
     }
 
     MalType apply(std::span<const MalType> args, Environment& env) {
-        std::cout << "apply_builtin is called" << std::endl;
-        if(args.front().id == TypeID::BUILTIN) {
-            auto builtin = std::get<Builtin_t>(args.front().func);
-            return builtin({args.begin()+1, args.end()});
+        std::cout << "apply is called" << std::endl;
+        auto arguments = args;
+        if(arguments.front().id == TypeID::LIST) {
+            auto new_first = eval(arguments.front(), env);
+            auto new_arguments = std::vector{args.begin()+1, args.end()};
+            new_arguments.insert(new_arguments.begin(), new_first);
+            arguments = {new_arguments};
         }
-        if(args.front().id == TypeID::LAMBDA)
-            return apply_lambda(args, env);
-        throw std::runtime_error("undefined symbol cant evaluate : " + Types::to_string(args.front(), true));
+        if(arguments.front().id == TypeID::BUILTIN) {
+            auto builtin = std::get<Builtin_t>(arguments.front().func);
+            return builtin({arguments.begin()+1, arguments.end()});
+        }
+        if(arguments.front().id == TypeID::LAMBDA)
+            return apply_lambda(arguments, env);
+        throw std::runtime_error("undefined symbol cant evaluate : " + Types::to_string(arguments.front(), true));
     }
 
     MalType create_lambda(std::span<const MalType> args, Environment& env) {
@@ -96,9 +103,6 @@ namespace Eval {
                 return env.get(get_string_view(ast));
             case TypeID::LIST:
                 std::cout << "container called \n";
-                if(get_container_view(ast).front().id == TypeID::SYMBOL &&
-                    get_string_view(get_container_view(ast).front()) == "fn*")
-                    return create_lambda(get_container_view(ast), env); 
                 return eval_container(ast, env);
             case TypeID::VECTOR:
                 return eval_container(ast, env);
