@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/step4_if_fn_do",
+            "program": "${workspaceFolder}/step5_tco",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

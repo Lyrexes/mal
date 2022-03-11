@@ -179,14 +179,12 @@ namespace Types {
     std::span<const MalType> get_container_view(const MalType& type) {
         if(type.id != TypeID::LIST && type.id != TypeID::VECTOR )
             type_error("container-type", to_string(type, true));
-        return { std::get<Container>(type.val).begin(),
-                 std::get<Container>(type.val).end()};
+        return std::get<Container>(type.val);
     }
 
     std::span<MalType> get_container_ref(MalType& type) {
         if(type.id != TypeID::LIST && type.id != TypeID::VECTOR )
             type_error("container-type", to_string(type, true));
-        return { std::get<Container>(type.val).begin(),
-                 std::get<Container>(type.val).end()};
+        return std::get<Container>(type.val);
     }
 }

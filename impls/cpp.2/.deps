@@ -11,4 +11,6 @@ step3_env.o: step3_env.cpp env.hpp reader.hpp printer.hpp types.hpp \
  eval.hpp core.hpp
 step4_if_fn_do.o: step4_if_fn_do.cpp env.hpp reader.hpp printer.hpp \
  types.hpp eval.hpp core.hpp
+step5_tco.o: step5_tco.cpp env.hpp reader.hpp printer.hpp types.hpp \
+ eval.hpp core.hpp
 types.o: types.cpp types.hpp

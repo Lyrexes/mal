@@ -16,6 +16,7 @@
 
 struct MalType;
 struct Environment;
+struct Lambda_t;
 
 enum class TypeID {
     FLOAT,
@@ -37,6 +38,11 @@ using Container = std::vector<MalType>;
 using Map_t = std::map<MalType, MalType>;
 using Builtin_t = std::function<MalType(std::span<const MalType> args)>;
 using MaybeVariadic = std::optional<std::size_t>;
+template <class T>
+using Maybe = std::optional<T>;
+using DataType = std::variant<double, bool, Container, Map_t, std::string,Null>;
+using Functor  = std::variant<Builtin_t, Lambda_t, Null>;
+
 struct Lambda_t {
     std::vector<std::string> params;
     Container body;
@@ -46,11 +52,6 @@ struct Lambda_t {
      std::shared_ptr<const Environment> env, MaybeVariadic is_variadic)
         :  params(parameter), body(body), env(env) , varidic_index(is_variadic){}
 };
-
-template <class T>
-using Maybe = std::optional<T>;
-using DataType = std::variant<double, bool, Container, Map_t, std::string,Null>;
-using Functor  = std::variant<Builtin_t, Lambda_t, Null>;
 
 struct MalType {
     TypeID id;
@@ -63,6 +64,13 @@ struct MalType {
         : id(id), val(std::move(val)) {}
     bool operator ==(const MalType& rhs) const { return val == rhs.val; }
     bool operator <(const MalType& rhs) const { return val < rhs.val; }
+};
+
+struct EvalPair {
+    MalType ast;
+    std::shared_ptr<Environment> env;
+    EvalPair(MalType ast, std::shared_ptr<Environment> env)
+     : ast(std::move(ast)), env(std::move(env)) {} 
 };
 namespace Types {
     using namespace std;

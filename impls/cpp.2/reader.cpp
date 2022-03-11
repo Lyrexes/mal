@@ -19,6 +19,8 @@ namespace Parser {
     }
     
     MalType read_form(Reader &tokens) { 
+        if(tokens.eof())
+            return Types::Nil();
         switch(tokens.peek().front()) {
             case '(' :
                 return read_container(tokens, TypeID::LIST);
@@ -168,6 +170,8 @@ namespace Parser {
     }
 
     std::string_view Reader::peek() const { 
+        if(tokens.empty())
+            return "";
         return tokens.front();
     }
 
@@ -194,6 +198,8 @@ namespace Parser {
     }
 
     bool is_valid_int(std::string_view str) {
+        if(str.empty())
+            return false;
         auto number = str;
         if(str.size() > 1 && (str.starts_with('+') || str.starts_with('-')))
             number = std::string_view(number.begin()+1, number.end());
