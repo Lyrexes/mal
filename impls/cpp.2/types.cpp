@@ -1,4 +1,5 @@
 #include "types.hpp"
+#include <iostream>
 
 namespace Types {
     std::string to_string(const MalType& type, bool readably) {
@@ -24,6 +25,8 @@ namespace Types {
                 return std::string(":") + std::get<std::string>(type.val);
             case TypeID::LAMBDA:
                 return "#<function>";
+            case TypeID::BUILTIN:
+                return "#<builtin>";
             default:
                 return "";
         }
@@ -75,13 +78,13 @@ namespace Types {
     }
 
     std::string to_string(std::string_view mal_str, bool readably) {
+        auto ret_str = std::string{mal_str};
         if(readably) {
-            mal_str = std::accumulate(mal_str.begin(), mal_str.end(), std::string(),
-                [](std::string acc, char c){
-                    return std::move(acc) + unescape_char(c);
-                });
+            ret_str = std::accumulate(mal_str.begin(), mal_str.end(), std::string(),
+                [](std::string&& acc, char c){ return std::move(acc) + unescape_char(c); });
+            return std::string("\"") + ret_str + std::string("\"");
         }
-        return std::string("\"") + std::string{mal_str} + std::string("\"");
+        return ret_str;
     }
 
     std::string to_string(double number) {
@@ -93,28 +96,6 @@ namespace Types {
     TypeID get_number_type(double val) {
         int val_int = std::abs(val);
         return val == val_int ? TypeID::INT : TypeID::FLOAT;
-    }
-
-    void validate_args(std::span<const MalType> args, std::size_t num, std::string op) {
-        if(args.size() != num)
-            throw std::runtime_error("too many arguments for function call: '" + op + "' !");
-    }
-
-    MalType add_num(std::span<const MalType> args) {
-        validate_args(args, 2, "+");
-        return apply_num_op(std::plus<>{}, args[0], args[1]);
-    }
-    MalType mul_num(std::span<const MalType> args) {
-        validate_args(args, 2, "*");
-        return apply_num_op(std::multiplies<>{}, args[0], args[1]);
-    }
-    MalType sub_num(std::span<const MalType> args) {
-        validate_args(args, 2, "-");
-        return apply_num_op(std::minus<>{}, args[0], args[1]);
-    }
-    MalType div_num(std::span<const MalType> args){
-        validate_args(args, 2, "/");
-        return apply_num_op(std::divides<>{}, args[0], args[1]);
     }
 
     MalType String(std::string string) {
@@ -161,8 +142,9 @@ namespace Types {
         return MalType(TypeID::BUILTIN, std::move(builtin));
     }
 
-    MalType Lambda(Container params, Container body, const Environment* env) {
-        return MalType(TypeID::LAMBDA, Lambda_t(std::move(params), std::move(body), env));
+    MalType Lambda(std::vector<std::string> params, Container body,
+     std::shared_ptr<const Environment> env, MaybeVariadic is_variadic) {
+        return MalType(TypeID::LAMBDA, Lambda_t(std::move(params), std::move(body), env, is_variadic));
     }
 
     void type_error(std::string&& expected, std::string&& got) {
@@ -191,8 +173,7 @@ namespace Types {
         if(type.id != TypeID::STRING && type.id != TypeID::KEYWORD
          &&type.id != TypeID::SYMBOL)
             type_error("string-type", to_string(type, true));
-        return {std::get<std::string>(type.val).begin(),
-                std::get<std::string>(type.val).end() };
+        return std::get<std::string>(type.val);
     }
 
     std::span<const MalType> get_container_view(const MalType& type) {

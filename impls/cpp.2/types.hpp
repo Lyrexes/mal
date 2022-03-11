@@ -11,6 +11,7 @@
 #include <optional>
 #include <map>
 #include <cmath>
+#include <memory>
 #include <stdexcept>
 
 struct MalType;
@@ -35,13 +36,15 @@ using Null = std::monostate;
 using Container = std::vector<MalType>;
 using Map_t = std::map<MalType, MalType>;
 using Builtin_t = std::function<MalType(std::span<const MalType> args)>;
-
+using MaybeVariadic = std::optional<std::size_t>;
 struct Lambda_t {
-    Container params;
+    std::vector<std::string> params;
     Container body;
-    const Environment* env;
-    Lambda_t(Container parameter, Container body, const Environment* env)
-        :  params(parameter), body(body), env(env) {}
+    std::shared_ptr<const Environment> env;
+    std::optional<std::size_t> varidic_index{};
+    Lambda_t(std::vector<std::string> parameter, Container body,
+     std::shared_ptr<const Environment> env, MaybeVariadic is_variadic)
+        :  params(parameter), body(body), env(env) , varidic_index(is_variadic){}
 };
 
 template <class T>
@@ -58,6 +61,7 @@ struct MalType {
         : id(id), func(std::move(func)) {}
     MalType(TypeID id, DataType val)
         : id(id), val(std::move(val)) {}
+    bool operator ==(const MalType& rhs) const { return val == rhs.val; }
     bool operator <(const MalType& rhs) const { return val < rhs.val; }
 };
 namespace Types {
@@ -71,23 +75,6 @@ namespace Types {
     std::string unescape_char(char c);
     TypeID get_number_type(double val);
 
-    template<typename L, typename R, typename Ret, typename Func>
-    Ret apply_binary(Func func, const MalType& lhs, const MalType& rhs) {
-        return func(std::get<L>(lhs.val), std::get<R>(rhs.val));
-    }
-
-    template<typename Func>
-    MalType apply_num_op(Func func, const MalType& lhs, const MalType& rhs){
-        auto num = func(std::get<double>(lhs.val), std::get<double>(rhs.val));
-        return MalType(get_number_type(num), num);
-    }
-
-    void validate_args(std::span<const MalType> args, std::size_t num, std::string op);
-
-    MalType add_num(std::span<const MalType> args);
-    MalType mul_num(std::span<const MalType> args);
-    MalType sub_num(std::span<const MalType> args);
-    MalType div_num(std::span<const MalType> args);
 
     MalType String(std::string string);
     MalType Symbol(std::string symbol);
@@ -100,7 +87,25 @@ namespace Types {
     MalType Nil();
     MalType Keyword(std::string kw);
     MalType Builtin(Builtin_t builtin);
-    MalType Lambda(Container params, Container body, const Environment* env);
+    MalType Lambda(std::vector<std::string> params, Container body, 
+        std::shared_ptr<const Environment> env, MaybeVariadic is_variadic);
+
+    template<typename L, typename R, typename Ret, typename Func>
+    Ret apply_binary(Func func, const MalType& lhs, const MalType& rhs) {
+        return func(std::get<L>(lhs.val), std::get<R>(rhs.val));
+    }
+
+    template<typename Func>
+    MalType apply_num_op(Func func, const MalType& lhs, const MalType& rhs){
+        auto num = func(std::get<double>(lhs.val), std::get<double>(rhs.val));
+        return MalType(get_number_type(num), num);
+    }
+
+    template<typename Func>
+    MalType apply_num_bool_op(Func func, const MalType& lhs, const MalType& rhs){
+        auto res = func(std::get<double>(lhs.val), std::get<double>(rhs.val));
+        return Bool(res);
+    }
 
     void type_error(std::string&& expected, std::string&& got);
 

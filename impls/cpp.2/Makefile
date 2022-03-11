@@ -6,10 +6,10 @@ LD=$(CXX)
 AR=ar
 
 DEBUG=-ggdb
-CXXFLAGS=-O3 -Wall $(DEBUG) $(INCPATHS) -std=c++20
-LDFLAGS=-O3 $(DEBUG) $(LIBPATHS) -L. -lreadline -lhistory
+CXXFLAGS=-O0 -Wall $(DEBUG) $(INCPATHS) -std=c++20
+LDFLAGS=-O0 $(DEBUG) $(LIBPATHS) -L. -lreadline -lhistory
 
-LIBSOURCES= reader.cpp types.cpp printer.cpp eval.cpp env.cpp
+LIBSOURCES= reader.cpp types.cpp printer.cpp eval.cpp env.cpp core.cpp
 LIBOBJS=$(LIBSOURCES:%.cpp=%.o)
 
 MAINS=$(wildcard step*.cpp)
