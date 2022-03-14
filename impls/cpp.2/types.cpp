@@ -4,38 +4,40 @@
 namespace Types {
     std::string to_string(const MalType& type, bool readably) {
         switch (type.id) {
-            case TypeID::INT:
+            case Type::INT:
                 return std::to_string(get_int(type));
-            case TypeID::FLOAT:
+            case Type::FLOAT:
                 return to_string(get_float(type));
-            case TypeID::SYMBOL:
+            case Type::SYMBOL:
                 return std::get<std::string>(type.val);
-            case TypeID::MAP:
+            case Type::MAP:
                 return to_string(std::get<Map_t>(type.val), readably);
-            case TypeID::LIST:
-            case TypeID::VECTOR:
-                return to_string(get_container_view(type), type.id, readably);
-            case TypeID::BOOL:
+            case Type::LIST:
+            case Type::VECTOR:
+                return to_string(get_seq_view(type), type.id, readably);
+            case Type::BOOL:
                 return get_bool(type)? "true" : "false";
-            case TypeID::STRING:
-                return to_string(get_string_view(type), readably);
-            case TypeID::NIL:
+            case Type::STRING:
+                return to_string(get_str(type), readably);
+            case Type::NIL:
                 return "nil";
-            case TypeID::KEYWORD:
+            case Type::KEYWORD:
                 return std::string(":") + std::get<std::string>(type.val);
-            case TypeID::LAMBDA:
+            case Type::LAMBDA:
                 return "#<function>";
-            case TypeID::BUILTIN:
+            case Type::BUILTIN:
                 return "#<builtin>";
+            case Type::ATOM:
+                return to_string(std::get<Atom_t>(type.val), readably);
             default:
                 return "";
         }
     }
     
-    std::string to_string(std::span<const MalType> container, TypeID type, bool readably) {
+    std::string to_string(std::span<const MalType> container, Type type, bool readably) {
             std::string delim;
             std::string container_str;
-            if(type == TypeID::LIST)
+            if(type == Type::LIST)
                 delim = "()";
             else
                 delim = "[]";
@@ -48,6 +50,10 @@ namespace Types {
             container_str.pop_back();
             container_str += {delim.back()};
             return container_str;
+    }
+
+    std::string to_string(const Atom_t &atom, bool readably) {
+        return "(atom " + to_string(*atom.ref, readably) + ")";
     }
 
     std::string to_string(const Map_t& map, bool readably) {
@@ -93,58 +99,63 @@ namespace Types {
         return str;
     }
 
-    TypeID get_number_type(double val) {
+    Type get_number_type(double val) {
         int val_int = std::abs(val);
-        return val == val_int ? TypeID::INT : TypeID::FLOAT;
+        return val == val_int ? Type::INT : Type::FLOAT;
     }
 
     MalType String(std::string string) {
-        return MalType(TypeID::STRING, std::move(string));
+        return MalType(Type::STRING, std::move(string));
     }
 
     MalType Symbol(std::string symbol) {
-        return MalType(TypeID::SYMBOL, std::move(symbol));
+        return MalType(Type::SYMBOL, std::move(symbol));
     }
 
     MalType Float(double num) {
-        return MalType(TypeID::FLOAT, num);
+        return MalType(Type::FLOAT, num);
     }
 
     MalType Int(long num) {
-        return MalType(TypeID::INT, static_cast<double>(num));
+        return MalType(Type::INT, static_cast<double>(num));
     }
 
     MalType Bool(bool val) {
-        return MalType(TypeID::BOOL, val);
+        return MalType(Type::BOOL, val);
     }
 
     MalType List(Container list) {
-        return MalType(TypeID::LIST,std::move(list));
+        return MalType(Type::LIST,std::move(list));
     }
 
     MalType Vector(Container vec) {
-        return MalType(TypeID::VECTOR,std::move(vec));
+        return MalType(Type::VECTOR,std::move(vec));
     }
 
     MalType Map(Map_t map) {
-        return MalType(TypeID::MAP, std::move(map));
+        return MalType(Type::MAP, std::move(map));
     }
 
     MalType Nil() { 
-        return MalType();
+        return MalType(Type::NIL);
     }
 
     MalType Keyword(std::string kw) {
-        return MalType(TypeID::KEYWORD, std::move(kw));
+        return MalType(Type::KEYWORD, std::move(kw));
     }
 
     MalType Builtin(Builtin_t builtin) {
-        return MalType(TypeID::BUILTIN, std::move(builtin));
+        return MalType(Type::BUILTIN, std::move(builtin));
     }
 
     MalType Lambda(std::vector<std::string> params, Container body,
-     std::shared_ptr<const Environment> env, MaybeVariadic is_variadic) {
-        return MalType(TypeID::LAMBDA, Lambda_t(std::move(params), std::move(body), env, is_variadic));
+     std::shared_ptr<Environment> env, MaybeVariadic is_variadic) {
+        return MalType(Type::LAMBDA, Lambda_t(std::move(params), std::move(body), env, is_variadic));
+    }
+
+    MalType Atom(MalType mal_val, Maybe<std::string> var) { 
+        return MalType(Type::ATOM, 
+        Atom_t(std::make_shared<MalType>(std::move(mal_val)), std::move(var)));
     }
 
     void type_error(std::string&& expected, std::string&& got) {
@@ -152,39 +163,60 @@ namespace Types {
     }
 
     long get_int(const MalType& type) {
-        if(type.id != TypeID::INT)
+        if(type.id != Type::INT)
             type_error("int", to_string(type, true));
         return std::roundl(std::get<double>(type.val));
     }
 
     double get_float(const MalType& type) {
-        if(type.id != TypeID::FLOAT)
+        if(type.id != Type::FLOAT)
             type_error("float", to_string(type, true));
         return std::get<double>(type.val);
     }
 
     bool get_bool(const MalType& type) {
-        if(type.id != TypeID::BOOL)
+        if(type.id != Type::BOOL)
             type_error("bool", to_string(type, true));
         return std::get<bool>(type.val);
     }
 
-    std::string_view get_string_view(const MalType& type) {
-        if(type.id != TypeID::STRING && type.id != TypeID::KEYWORD
-         &&type.id != TypeID::SYMBOL)
+    std::string_view get_str(const MalType& type) {
+        if(type.id != Type::STRING && type.id != Type::KEYWORD
+         &&type.id != Type::SYMBOL)
             type_error("string-type", to_string(type, true));
         return std::get<std::string>(type.val);
     }
 
-    std::span<const MalType> get_container_view(const MalType& type) {
-        if(type.id != TypeID::LIST && type.id != TypeID::VECTOR )
+    std::span<const MalType> get_seq_view(const MalType& type) {
+        if(type.id != Type::LIST && type.id != Type::VECTOR )
             type_error("container-type", to_string(type, true));
         return std::get<Container>(type.val);
     }
 
-    std::span<MalType> get_container_ref(MalType& type) {
-        if(type.id != TypeID::LIST && type.id != TypeID::VECTOR )
+    std::span<MalType> get_seq(MalType& type) {
+        if(type.id != Type::LIST && type.id != Type::VECTOR )
             type_error("container-type", to_string(type, true));
         return std::get<Container>(type.val);
+    }
+
+    MalType& fst(MalType& type) {
+        if(get_seq(type).empty())
+            throw std::invalid_argument("fst: cannot call fst on empty seq!");
+        return get_seq(type)[0];
+    }
+
+    MalType& nth_elem(std::size_t index, MalType& type) {
+        auto seq = get_seq(type);
+        if(seq.size() <= index)
+            throw std::invalid_argument("get_nth: index out of bounds!");
+        return seq[index];
+    }
+
+    bool empty(MalType& seq) {
+        return get_seq(seq).empty();
+    }
+
+    bool is_type(const MalType& mal, Type type) {
+        return mal.id == type;
     }
 }

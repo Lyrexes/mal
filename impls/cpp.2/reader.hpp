@@ -10,7 +10,7 @@
 #include <optional>
 
 class MalType;
-enum class TypeID;
+enum class Type;
 
 namespace Parser {
     using Tokens  = std::vector<std::string>;
@@ -30,9 +30,10 @@ namespace Parser {
 
     Tokens tokenize(std::string str, const char* regex_str);
     MalType read_str(std::string str, const char* regex_str);
+    MalType read_comment(Reader &tokens);
     MalType read_string(Reader &tokens);
     MalType read_form(Reader &tokens);
-    MalType read_container(Reader &tokens, TypeID type);
+    MalType read_container(Reader &tokens, Type type);
     MalType read_hashmap(Reader &tokens);
     MalType read_atom(Reader &tokens);
     MalType read_keyword(Reader &tokens);

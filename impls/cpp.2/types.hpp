@@ -18,7 +18,7 @@ struct MalType;
 struct Environment;
 struct Lambda_t;
 
-enum class TypeID {
+enum class Type {
     FLOAT,
     INT,
     BOOL, 
@@ -30,37 +30,49 @@ enum class TypeID {
     STRING,
     KEYWORD,
     BUILTIN,
-    LAMBDA
+    LAMBDA,
+    ATOM,
+};
+
+using MalRef = std::shared_ptr<MalType>;
+template <class T>
+using Maybe = std::optional<T>;
+
+struct Atom_t {
+    MalRef ref;
+    Maybe<std::string> var;
+    Atom_t(MalRef ref, Maybe<std::string> var) : ref(ref), var(var) {}
+    bool operator ==(const Atom_t& rhs) const { return ref == rhs.ref; }
+    bool operator <(const Atom_t& rhs) const { return ref < rhs.ref; }
 };
 
 using Null = std::monostate;
 using Container = std::vector<MalType>;
 using Map_t = std::map<MalType, MalType>;
-using Builtin_t = std::function<MalType(std::span<const MalType> args)>;
+using Builtin_t = std::function<MalType(std::span<MalType> args, std::shared_ptr<Environment> env)>;
 using MaybeVariadic = std::optional<std::size_t>;
-template <class T>
-using Maybe = std::optional<T>;
-using DataType = std::variant<double, bool, Container, Map_t, std::string,Null>;
+using DataType = std::variant<double, bool, Container, Map_t, std::string, Atom_t,Null>;
 using Functor  = std::variant<Builtin_t, Lambda_t, Null>;
 
 struct Lambda_t {
     std::vector<std::string> params;
     Container body;
-    std::shared_ptr<const Environment> env;
+    std::shared_ptr<Environment> env;
     std::optional<std::size_t> varidic_index{};
     Lambda_t(std::vector<std::string> parameter, Container body,
-     std::shared_ptr<const Environment> env, MaybeVariadic is_variadic)
+     std::shared_ptr<Environment> env, MaybeVariadic is_variadic)
         :  params(parameter), body(body), env(env) , varidic_index(is_variadic){}
 };
 
 struct MalType {
-    TypeID id;
+    Type id;
     DataType val{};
     Functor func{};
-    MalType() : id(TypeID::NIL) {}
-    MalType(TypeID id, Functor func) 
+    MalType() : id(Type::NIL) {}
+    explicit MalType(Type id) : id(id) {}
+    MalType(Type id, Functor func) 
         : id(id), func(std::move(func)) {}
-    MalType(TypeID id, DataType val)
+    MalType(Type id, DataType val)
         : id(id), val(std::move(val)) {}
     bool operator ==(const MalType& rhs) const { return val == rhs.val; }
     bool operator <(const MalType& rhs) const { return val < rhs.val; }
@@ -75,15 +87,16 @@ struct EvalPair {
 namespace Types {
     using namespace std;
     string to_string(const MalType& type, bool readably);
-    string to_string(std::span<const MalType> container, TypeID type, bool readably);
+    string to_string(std::span<const MalType> container, Type type, bool readably);
     string to_string(const Map_t& hashmap, bool readably);
     string to_string(string_view mal_str, bool readably);
     string to_string(double number);
+    std::string to_string(const Atom_t &atom, bool readably);
 
     std::string unescape_char(char c);
-    TypeID get_number_type(double val);
+    Type get_number_type(double val);
 
-
+    MalType Atom(MalType mal_val, std::optional<std::string> var);
     MalType String(std::string string);
     MalType Symbol(std::string symbol);
     MalType Float(double num);
@@ -96,7 +109,7 @@ namespace Types {
     MalType Keyword(std::string kw);
     MalType Builtin(Builtin_t builtin);
     MalType Lambda(std::vector<std::string> params, Container body, 
-        std::shared_ptr<const Environment> env, MaybeVariadic is_variadic);
+        std::shared_ptr<Environment> env, MaybeVariadic is_variadic);
 
     template<typename L, typename R, typename Ret, typename Func>
     Ret apply_binary(Func func, const MalType& lhs, const MalType& rhs) {
@@ -120,9 +133,13 @@ namespace Types {
     long get_int(const MalType& type);
     double get_float(const MalType& type);
     bool get_bool(const MalType& type);
-    std::string_view get_string_view(const MalType& type);
-    std::span<const MalType> get_container_view(const MalType& type);
-    std::span<MalType> get_container_ref(MalType& type);
+    std::string_view get_str(const MalType& type);
+    std::span<const MalType> get_seq_view(const MalType& type);
+    std::span<MalType> get_seq(MalType& type);
+    MalType& fst(MalType& seq);
+    MalType& nth_elem(std::size_t, MalType& seq);
+    bool empty(MalType& seq);
+    bool is_type(const MalType& mal, Type type);
 }
 
 

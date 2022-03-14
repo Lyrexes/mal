@@ -13,8 +13,6 @@ namespace Parser {
 
     MalType read_str(std::string str, const char* regex_str) { 
         Reader reader(move(tokenize(str, regex_str)));
-        if(reader.peek().starts_with(";"))
-            throw "comment!";
         return read_form(reader);
     }
     
@@ -23,9 +21,9 @@ namespace Parser {
             return Types::Nil();
         switch(tokens.peek().front()) {
             case '(' :
-                return read_container(tokens, TypeID::LIST);
+                return read_container(tokens, Type::LIST);
             case '[': 
-                return read_container(tokens, TypeID::VECTOR);
+                return read_container(tokens, Type::VECTOR);
             case '{':
                 return read_hashmap(tokens);
             case '"':   
@@ -34,9 +32,16 @@ namespace Parser {
                 return read_keyword(tokens);
             case '^': 
                 return read_meta(tokens);
+            case ';':
+               return read_comment(tokens);
             default:  
                 return read_atom(tokens);
         }
+    }
+
+    MalType read_comment(Reader &tokens) {
+        tokens.pop();
+        return read_form(tokens);
     }
 
     MalType read_hashmap(Reader &tokens) {
@@ -92,11 +97,11 @@ namespace Parser {
         return Types::List(Container{sym, value, meta});
     }
 
-    MalType read_container(Reader &tokens, TypeID type) {
+    MalType read_container(Reader &tokens, Type type) {
         Container mal_container;
         std::string end_delim;
 
-        if(type == TypeID::LIST)
+        if(type == Type::LIST)
             end_delim = ")";
         else 
             end_delim = "]";

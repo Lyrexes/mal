@@ -1,4 +1,5 @@
-core.o: core.cpp core.hpp types.hpp printer.hpp
+core.o: core.cpp core.hpp eval.hpp types.hpp printer.hpp reader.hpp \
+ env.hpp
 env.o: env.cpp env.hpp types.hpp eval.hpp
 eval.o: eval.cpp eval.hpp types.hpp env.hpp core.hpp
 printer.o: printer.cpp printer.hpp types.hpp
@@ -12,5 +13,9 @@ step3_env.o: step3_env.cpp env.hpp reader.hpp printer.hpp types.hpp \
 step4_if_fn_do.o: step4_if_fn_do.cpp env.hpp reader.hpp printer.hpp \
  types.hpp eval.hpp core.hpp
 step5_tco.o: step5_tco.cpp env.hpp reader.hpp printer.hpp types.hpp \
+ eval.hpp core.hpp
+step6_file.o: step6_file.cpp env.hpp reader.hpp printer.hpp types.hpp \
+ eval.hpp core.hpp
+step7_quote.o: step7_quote.cpp env.hpp reader.hpp printer.hpp types.hpp \
  eval.hpp core.hpp
 types.o: types.cpp types.hpp

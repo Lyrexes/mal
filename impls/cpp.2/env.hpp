@@ -6,7 +6,7 @@
 #include <vector>
 
 class MalType;
-
+class Atom_t;
 class Environment :  public std::enable_shared_from_this<Environment>{
     public:
         template <typename T>
@@ -18,16 +18,21 @@ class Environment :  public std::enable_shared_from_this<Environment>{
         using vec = std::vector<T>;
         using str = std::string;
     public:
-        Environment(Maybe<ConstEnvPtr> outer={}, const vec<str>& binds={}, const vec<MalType>& exprs={});
-        Environment(Maybe<ConstEnvPtr> outer, std::map<std::string, MalType> table);
+        Environment(Maybe<EnvPtr> outer={}, const vec<str>& binds={}, const vec<MalType>& exprs={});
+        Environment(Maybe<EnvPtr> outer, std::map<std::string, MalType> table);
         void set(std::string key, MalType value);
         void set(const std::map<std::string, MalType>& table);
+        void def_atom(std::string key, MalType atom);
+        void change_atom(std::string key, MalType value);
+        EnvPtr get_root_env();
+        Maybe<EnvPtr> find(std::string_view name);
+        MalType get(std::string_view name);
         Maybe<ConstEnvPtr> find(std::string_view name) const;
         MalType get(std::string_view name) const;
         std::string to_string() const;
         MalType at(std::string_view name) const;
     private:
-        Maybe<ConstEnvPtr> outer;
+        Maybe<EnvPtr> outer;
         std::map<std::string, MalType> data{};
 };
 
