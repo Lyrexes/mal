@@ -33,6 +33,9 @@ namespace Core {
     MalType pr_str(Args args, EnvPtr env);
     MalType str(Args args, EnvPtr env);
     MalType println(Args args, EnvPtr env);
+    MalType nth(Args args, EnvPtr env);
+    MalType first(Args args, EnvPtr env);
+    MalType rest(Args args, EnvPtr env);
     MalType list(Args args, EnvPtr env);
     MalType vec(Args args, EnvPtr env);
     MalType is_list(Args args, EnvPtr env);

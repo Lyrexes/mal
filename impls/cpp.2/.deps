@@ -18,4 +18,6 @@ step6_file.o: step6_file.cpp env.hpp reader.hpp printer.hpp types.hpp \
  eval.hpp core.hpp
 step7_quote.o: step7_quote.cpp env.hpp reader.hpp printer.hpp types.hpp \
  eval.hpp core.hpp
+step8_macros.o: step8_macros.cpp env.hpp reader.hpp printer.hpp types.hpp \
+ eval.hpp core.hpp
 types.o: types.cpp types.hpp

@@ -1,5 +1,6 @@
 #ifndef TYPES_HPP
 #define TYPES_HPP
+#include <cstddef>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -55,32 +56,58 @@ using DataType = std::variant<double, bool, Container, Map_t, std::string, Atom_
 using Functor  = std::variant<Builtin_t, Lambda_t, Null>;
 
 struct Lambda_t {
-    std::vector<std::string> params;
-    Container body;
-    std::shared_ptr<Environment> env;
+    std::vector<std::string> params{};
+    Container body{};
+    std::shared_ptr<Environment> env{};
     std::optional<std::size_t> varidic_index{};
+    bool is_macro = false;
     Lambda_t(std::vector<std::string> parameter, Container body,
      std::shared_ptr<Environment> env, MaybeVariadic is_variadic)
         :  params(parameter), body(body), env(env) , varidic_index(is_variadic){}
+    Lambda_t(std::vector<std::string> parameter, Container body,
+     std::shared_ptr<Environment> env, MaybeVariadic is_variadic, bool is_macro)
+        :  params(parameter), body(body), env(env) , varidic_index(is_variadic),
+         is_macro(is_macro){}
 };
 
 struct MalType {
-    Type id;
-    DataType val{};
-    Functor func{};
-    MalType() : id(Type::NIL) {}
-    explicit MalType(Type id) : id(id) {}
+    MalType() : m_id(Type::NIL) {}
+    explicit MalType(Type id) : m_id(id) {}
     MalType(Type id, Functor func) 
-        : id(id), func(std::move(func)) {}
+        : m_id(id), m_func(std::move(func)) {}
     MalType(Type id, DataType val)
-        : id(id), val(std::move(val)) {}
-    bool operator ==(const MalType& rhs) const { return val == rhs.val; }
-    bool operator <(const MalType& rhs) const { return val < rhs.val; }
+        : m_id(id), m_val(std::move(val)) {}
+    bool operator ==(const MalType& rhs) const { return m_val == rhs.m_val; }
+    bool operator <(const MalType& rhs) const { return m_val < rhs.m_val; }
+
+    long intv() const;
+    double floatv() const;
+    bool boolv() const;
+    std::string_view str() const;
+    std::span<const MalType> seq_view() const;
+    std::span<MalType> seq();
+    std::span<MalType> sub_seq(std::size_t offset, std::size_t count);
+    std::span<MalType> sub_seq(std::size_t offset);
+    MalType& fst();
+    MalType& nth(std::size_t);
+    bool empty() const;
+    bool type(Type type) const;
+    bool is_macro() const;
+    Type id() const;
+    const DataType& val() const;
+    const Functor& func() const;
+    DataType& val();
+    Functor& func();
+private:
+    Type m_id{};
+    DataType m_val{};
+    Functor m_func{};
 };
 
 struct EvalPair {
-    MalType ast;
-    std::shared_ptr<Environment> env;
+    MalType ast{};
+    std::shared_ptr<Environment> env{};
+    EvalPair() {}
     EvalPair(MalType ast, std::shared_ptr<Environment> env)
      : ast(std::move(ast)), env(std::move(env)) {} 
 };
@@ -108,41 +135,28 @@ namespace Types {
     MalType Nil();
     MalType Keyword(std::string kw);
     MalType Builtin(Builtin_t builtin);
-    MalType Lambda(std::vector<std::string> params, Container body, 
-        std::shared_ptr<Environment> env, MaybeVariadic is_variadic);
+    MalType Lambda(std::vector<std::string> params, Container body, std::shared_ptr<Environment> env,
+     MaybeVariadic is_variadic, bool is_macro = false);
 
     template<typename L, typename R, typename Ret, typename Func>
     Ret apply_binary(Func func, const MalType& lhs, const MalType& rhs) {
-        return func(std::get<L>(lhs.val), std::get<R>(rhs.val));
+        return func(std::get<L>(lhs.val()), std::get<R>(rhs.val()));
     }
 
     template<typename Func>
     MalType apply_num_op(Func func, const MalType& lhs, const MalType& rhs){
-        auto num = func(std::get<double>(lhs.val), std::get<double>(rhs.val));
+        auto num = func(std::get<double>(lhs.val()), std::get<double>(rhs.val()));
         return MalType(get_number_type(num), num);
     }
 
     template<typename Func>
     MalType apply_num_bool_op(Func func, const MalType& lhs, const MalType& rhs){
-        auto res = func(std::get<double>(lhs.val), std::get<double>(rhs.val));
+        auto res = func(std::get<double>(lhs.val()), std::get<double>(rhs.val()));
         return Bool(res);
     }
 
     void type_error(std::string&& expected, std::string&& got);
-
-    long get_int(const MalType& type);
-    double get_float(const MalType& type);
-    bool get_bool(const MalType& type);
-    std::string_view get_str(const MalType& type);
-    std::span<const MalType> get_seq_view(const MalType& type);
-    std::span<MalType> get_seq(MalType& type);
-    MalType& fst(MalType& seq);
-    MalType& nth_elem(std::size_t, MalType& seq);
-    bool empty(MalType& seq);
-    bool is_type(const MalType& mal, Type type);
 }
-
-
 
 
 #endif

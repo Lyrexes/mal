@@ -22,6 +22,7 @@ std::string REP(std::string arg, const char* regex, bool readably, EnvPtr env);
 EnvPtr init_repl_env();
 bool handle_args(int argc, char* argv[], EnvPtr env);
 
+
 int main(int argc, char *argv[]) {
     auto repl_env = init_repl_env();
     if(handle_args(argc, argv, repl_env))

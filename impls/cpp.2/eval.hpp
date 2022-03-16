@@ -19,10 +19,13 @@ namespace Eval {
     MalType eval_container(const MalType& ast, std::shared_ptr<Environment> env);
     MalType eval_map(const MalType& ast, std::shared_ptr<Environment> env);
     MalType apply_def(std::span<MalType> args, std::shared_ptr<Environment> env);
+    MalType apply_defmacro(std::span<MalType> args, std::shared_ptr<Environment> env);
     MalType apply_quote(std::span<MalType> args);
     MalType apply_quasiquote(std::span<MalType> args);
     MalType recur_quasiquote(MalType& ast);
     MalType create_lambda(std::span<MalType> args, std::shared_ptr<Environment> env);
+    MalType apply_macro_expand(std::span<MalType> args, std::shared_ptr<Environment> env);
+    MalType macro_expand(MalType& ast, std::shared_ptr<Environment> env);
     EvalPair apply_lambda(std::span<MalType> args);
     EvalPair apply_do(std::span<MalType> args, std::shared_ptr<Environment> env);
     EvalPair apply_if(std::span<MalType> args, std::shared_ptr<Environment> env);
@@ -33,6 +36,8 @@ namespace Eval {
     std::shared_ptr<Environment> get_env_lambda(const Lambda_t& lambda, std::vector<MalType> args);
     void called_with(std::string calle, const MalType& ast);
     void called_with(std::string calle, std::span<MalType> ast);
+    bool is_macro_call(MalType& ast, std::shared_ptr<Environment> env);
+    
 }
 
 #endif

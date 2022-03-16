@@ -24,6 +24,7 @@ class Environment :  public std::enable_shared_from_this<Environment>{
         void set(const std::map<std::string, MalType>& table);
         void def_atom(std::string key, MalType atom);
         void change_atom(std::string key, MalType value);
+        bool exists(std::string_view key);
         EnvPtr get_root_env();
         Maybe<EnvPtr> find(std::string_view name);
         MalType get(std::string_view name);

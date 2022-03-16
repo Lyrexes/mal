@@ -1,34 +1,35 @@
 #include "types.hpp"
+#include <cstddef>
 #include <iostream>
 
 namespace Types {
     std::string to_string(const MalType& type, bool readably) {
-        switch (type.id) {
+        switch (type.id()) {
             case Type::INT:
-                return std::to_string(get_int(type));
+                return std::to_string(type.intv());
             case Type::FLOAT:
-                return to_string(get_float(type));
+                return to_string(type.floatv());
             case Type::SYMBOL:
-                return std::get<std::string>(type.val);
+                return std::get<std::string>(type.val());
             case Type::MAP:
-                return to_string(std::get<Map_t>(type.val), readably);
+                return to_string(std::get<Map_t>(type.val()), readably);
             case Type::LIST:
             case Type::VECTOR:
-                return to_string(get_seq_view(type), type.id, readably);
+                return to_string(type.seq_view(), type.id(), readably);
             case Type::BOOL:
-                return get_bool(type)? "true" : "false";
+                return type.boolv() ? "true" : "false";
             case Type::STRING:
-                return to_string(get_str(type), readably);
+                return to_string(type.str(), readably);
             case Type::NIL:
                 return "nil";
             case Type::KEYWORD:
-                return std::string(":") + std::get<std::string>(type.val);
+                return std::string(":") + std::get<std::string>(type.val());
             case Type::LAMBDA:
                 return "#<function>";
             case Type::BUILTIN:
                 return "#<builtin>";
             case Type::ATOM:
-                return to_string(std::get<Atom_t>(type.val), readably);
+                return to_string(std::get<Atom_t>(type.val()), readably);
             default:
                 return "";
         }
@@ -149,8 +150,9 @@ namespace Types {
     }
 
     MalType Lambda(std::vector<std::string> params, Container body,
-     std::shared_ptr<Environment> env, MaybeVariadic is_variadic) {
-        return MalType(Type::LAMBDA, Lambda_t(std::move(params), std::move(body), env, is_variadic));
+     std::shared_ptr<Environment> env, MaybeVariadic is_variadic, bool is_macro) {
+        return MalType(Type::LAMBDA, 
+         Lambda_t(std::move(params), std::move(body), env, is_variadic, is_macro));
     }
 
     MalType Atom(MalType mal_val, Maybe<std::string> var) { 
@@ -161,7 +163,7 @@ namespace Types {
     void type_error(std::string&& expected, std::string&& got) {
         throw std::runtime_error("TypeError: expected type: " + expected + ", got: " + got);
     }
-
+/**
     long get_int(const MalType& type) {
         if(type.id != Type::INT)
             type_error("int", to_string(type, true));
@@ -219,4 +221,116 @@ namespace Types {
     bool is_type(const MalType& mal, Type type) {
         return mal.id == type;
     }
+
+    bool is_macro(const MalType& mal) {
+        if(!is_type(mal, Type::LAMBDA))
+            throw std::runtime_error("is_macro t: expected lambda!");
+        return std::get<Lambda_t>(mal.func).is_macro;
+    }
+
+    std::span<MalType> get_sub_seq(MalType& type, std::size_t offset, std::size_t count) {
+        if(get_seq(type).size() <= offset + count)
+            throw std::invalid_argument("get_sub_seq: index out of bounds!");
+        return get_seq(type).subspan(offset, count);
+    }
+
+    std::span<MalType> get_sub_seq(MalType& type, std::size_t offset) {
+        if(get_seq(type).size() <= offset)
+            throw std::invalid_argument("get_sub_seq: index out of bounds!");
+        return get_seq(type).subspan(offset);
+    }
+    **/
 }
+
+long MalType::intv() const {
+    if(m_id != Type::INT)
+        Types::type_error("int", Types::to_string(*this, true));
+    return std::roundl(std::get<double>(m_val));
+}
+
+double MalType::floatv() const {
+    if(m_id != Type::FLOAT)
+        Types::type_error("float", Types::to_string(*this, true));
+    return std::get<double>(m_val);
+}
+
+bool MalType::boolv() const {
+    if(m_id != Type::BOOL)
+        Types::type_error("bool", Types::to_string(*this, true));
+    return std::get<bool>(m_val);
+}
+
+std::string_view MalType::str() const {
+    if(m_id != Type::STRING && m_id != Type::KEYWORD
+     &&m_id != Type::SYMBOL)
+        Types::type_error("string-type", Types::to_string(*this, true));
+    return std::get<std::string>(m_val);
+}
+
+std::span<const MalType> MalType::seq_view() const {
+    if(m_id != Type::LIST && m_id != Type::VECTOR)
+        Types::type_error("sequence-type", Types::to_string(*this, true));
+    return std::get<Container>(m_val);
+}
+
+std::span<MalType> MalType::seq()  {
+    if(m_id != Type::LIST && m_id != Type::VECTOR)
+        Types::type_error("sequence-type", Types::to_string(*this, true));
+    return std::get<Container>(m_val);
+}
+
+std::span<MalType> MalType::sub_seq(std::size_t offset, std::size_t count) {
+    if(this->seq().size() <= offset + count)
+        throw std::invalid_argument("get_sub_seq: index out of bounds!");
+    return this->seq().subspan(offset, count);
+}
+
+std::span<MalType> MalType::sub_seq(std::size_t offset) {
+    if(this->seq().size() <= offset)
+        throw std::invalid_argument("get_sub_seq: index out of bounds!");
+    return this->seq().subspan(offset);
+}
+
+MalType& MalType::fst() {
+    if(this->empty())
+        throw std::invalid_argument("fst: cannot call fst on empty seq!");
+    return this->seq()[0];
+}
+
+MalType& MalType::nth(std::size_t index) {
+    if(this->seq().size() <= index)
+        throw std::invalid_argument("get_nth: index out of bounds!");
+    return this->seq()[index];
+}
+
+bool MalType::empty() const {
+    return this->seq_view().empty();
+}
+
+bool MalType::type(Type type) const {
+    return type == m_id;
+}
+
+bool MalType::is_macro() const {
+    if(!this->type(Type::LAMBDA))
+        throw std::runtime_error("is_macro t: expected lambda!");
+    return std::get<Lambda_t>(m_func).is_macro;
+}
+
+const DataType& MalType::val() const {
+    return m_val;
+}
+
+const Functor& MalType::func() const {
+    return m_func;
+}
+
+DataType& MalType::val() {
+    return m_val;
+}
+
+Functor& MalType::func() {
+    return m_func;
+}
+
+Type MalType::id() const { return m_id; }

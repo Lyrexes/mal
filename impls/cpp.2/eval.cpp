@@ -23,21 +23,34 @@ namespace Eval {
     MalType eval(const MalType& ast, EnvPtr env) {
         auto curr_pair = EvalPair{ast, env};
         while (true) {
-            if(curr_pair.ast.id == Type::LIST) {
-                auto list = get_seq(curr_pair.ast);
+            if(!curr_pair.ast.type(Type::LIST))
+                return eval_ast(curr_pair);
+
+            curr_pair.ast = macro_expand(curr_pair.ast, curr_pair.env);
+
+            if(curr_pair.ast.type(Type::LIST)) {
+
+                auto list = curr_pair.ast.seq();
+
                 if(list.empty())
                     return curr_pair.ast;
             
-                if(list.front().id == Type::SYMBOL) {
-                    auto first_sym = get_str(list.front());
+                if(list.front().type(Type::SYMBOL)) {
+
+                    auto first_sym = list.front().str();
+
                     if(first_sym == "def!") 
                         return apply_def(list, curr_pair.env); 
+                    if(first_sym == "defmacro!") 
+                        return apply_defmacro(list, curr_pair.env); 
                     if(first_sym == "fn*")
                         return create_lambda(list, curr_pair.env); 
                     if(first_sym == "quote")
                         return apply_quote(list);
                     if(first_sym == "quasiquoteexpand")
                         return apply_quasiquote(list);
+                    if(first_sym == "macroexpand")
+                        return apply_macro_expand(list, curr_pair.env);
                     if(first_sym == "quasiquote") {
                         curr_pair.ast = apply_quasiquote(list);
                         continue;
@@ -46,7 +59,6 @@ namespace Eval {
                         curr_pair = apply_let(list, curr_pair.env); 
                         continue;
                     }
-
                     if(first_sym == "do") {
                         curr_pair = apply_do(list, curr_pair.env); 
                         continue;
@@ -56,18 +68,19 @@ namespace Eval {
                         continue;
                     }
                 }
-                auto evaluated_ast = eval_ast(curr_pair);
-                auto eval_list = get_seq(evaluated_ast);
 
-                if(eval_list.front().id == Type::BUILTIN)
+                auto evaluated_ast = eval_ast(curr_pair);
+                auto eval_list = evaluated_ast.seq();
+
+                if(eval_list.front().type(Type::BUILTIN))
                     return apply(eval_list, curr_pair.env); 
                 
-                if(eval_list.front().id == Type::LAMBDA) {
+                if(eval_list.front().type(Type::LAMBDA)) {
                     curr_pair = apply_lambda(eval_list);
                     continue;
                 }
                 throw std::runtime_error("undefined symbol cant evaluate : "
-                 + Types::to_string(List(std::get<Container>(evaluated_ast.val)), true));
+                 + Types::to_string(List(std::get<Container>(evaluated_ast.val())), true));
             }
             return eval_ast(curr_pair);
         }
@@ -79,21 +92,23 @@ namespace Eval {
     }
 
     MalType recur_quasiquote(MalType& ast) {
-        if(ast.id == Type::LIST || ast.id == Type::VECTOR) {
-            if(!empty(ast) && is_type(fst(ast), Type::SYMBOL)
-                && !is_type(ast, Type::VECTOR) && get_str(fst(ast)) == "unquote") {
-                Core::validate_args(get_seq(ast), 2, "unquote");
-                return nth_elem(1, ast);
+        if(ast.type(Type::LIST) || ast.type(Type::VECTOR)) {
+            if(!ast.empty() && ast.fst().type(Type::SYMBOL)
+                && !ast.type(Type::VECTOR) && ast.fst().str() == "unquote") {
+                Core::validate_args(ast.seq(), 2, "unquote");
+                return ast.nth(1);
             }
-            auto ast_list = get_seq(ast);
+
+            auto ast_list = ast.seq();
             auto result = std::vector<MalType>{};
             auto temp_list = std::vector<MalType>{3};
+
             for (auto it = ast_list.rbegin(); it != ast_list.rend(); ++it) {
                 auto &elt = *it;
-                if(elt.id == Type::LIST && !empty(elt)
-                 && fst(elt).id == Type::SYMBOL
-                 && get_str(fst(elt)) == "splice-unquote") {
-                    auto elt_list = get_seq(elt);
+                if(elt.type(Type::LIST) && !empty(elt)
+                 && elt.fst().type(Type::SYMBOL)
+                 && elt.fst().str() == "splice-unquote") {
+                    auto elt_list = elt.seq();
                     Core::validate_args(elt_list, 2, "splice-unquote");
                     temp_list[0] = Symbol("concat"); 
                     temp_list[1] = elt_list[1]; 
@@ -104,12 +119,12 @@ namespace Eval {
                 temp_list[2] = List(result);
                 result = temp_list;
             }
-            if(ast.id == Type::VECTOR)
+            if(ast.type(Type::VECTOR))
                 return List({Symbol("vec"), List(result)});
             return List(result);
         }
 
-        if(ast.id == Type::SYMBOL || ast.id == Type::MAP)
+        if(ast.type(Type::SYMBOL) || ast.type(Type::MAP))
             return List({Symbol("quote"), ast});
         return ast;
     }
@@ -120,7 +135,7 @@ namespace Eval {
     }
 
     MalType apply(std::span<MalType> args, EnvPtr env) {
-        auto builtin = std::get<Builtin_t>(args.front().func);
+        auto builtin = std::get<Builtin_t>(args.front().func());
         return builtin({args.begin()+1, args.end()}, env);
     }
 
@@ -130,31 +145,31 @@ namespace Eval {
         auto arguments = std::span{args.begin()+1, args.end()};
         auto [params, is_variadic] =  validate_lambda_params(arguments[0]);
         auto body = Container{};
-        if (arguments[1].id == Type::LIST) 
-            body = std::get<Container>(std::move(arguments[1].val));
+        if (arguments[1].type(Type::LIST))
+            body = std::get<Container>(std::move(arguments[1].val()));
         else
             body = {std::move(arguments[1])};
         return Lambda(std::move(params), std::move(body), env, is_variadic);
     }
 
     std::pair<std::vector<std::string>,MaybeVariadic> validate_lambda_params(const MalType& params) {
-        if(params.id != Type::LIST && params.id != Type::VECTOR)
+        if(params.type(Type::LIST) && params.type(Type::VECTOR))
             throw std::runtime_error("lamda parameter must be a list or vector!");
 
         auto param_list = std::vector<std::string>{};
-        param_list.reserve(Types::get_seq_view(params).size());
-        auto params_view = get_seq_view(params);
+        param_list.reserve(params.seq_view().size());
+        auto params_view = params.seq_view();
         auto is_variadic = MaybeVariadic{};
 
         for(auto param  = params_view.begin(); param != params_view.end(); ++param) {
-            if(param->id != Type::SYMBOL)
+            if(!param->type(Type::SYMBOL))
                 throw std::runtime_error("Each lamda parameter must be a Symbol! got: " 
                 + Types::to_string(*param, true));
-            if(get_str(*param) == "&") {
+            if(param->str() == "&") {
                 is_variadic = std::distance(params_view.begin(), param);
                 continue;
             }
-            param_list.push_back(std::get<std::string>(std::move(param->val)));
+            param_list.push_back(std::get<std::string>(std::move(param->val())));
         }
         return {param_list, is_variadic};
     }
@@ -179,13 +194,13 @@ namespace Eval {
 
         auto condition = eval(params[0], env);
 
-        switch(condition.id){
+        switch(condition.id()){
             case Type::NIL:
                 if(has_else)
                     return EvalPair(params[2], env);
                 return EvalPair(Nil(), env);
             case Type::BOOL:
-                if(get_bool(condition))
+                if(condition.boolv())
                     return EvalPair(params[1], env);
                 else if(has_else)
                     return EvalPair(params[2], env);
@@ -196,9 +211,9 @@ namespace Eval {
     }
 
     MalType eval_ast(const EvalPair& pair) {
-        switch (pair.ast.id) {
+        switch (pair.ast.id()) {
             case Type::SYMBOL:
-                return pair.env->get(get_str(pair.ast));
+                return pair.env->get(pair.ast.str());
             case Type::LIST:
             case Type::VECTOR:
                 return eval_container(pair.ast, pair.env);
@@ -211,20 +226,20 @@ namespace Eval {
 
     MalType eval_container(const MalType& ast, EnvPtr env) {
         Container seq{};
-        for(const auto& el : get_seq_view(ast))
+        for(const auto& el : ast.seq_view())
             seq.push_back(eval(el, env));
-        return MalType(ast.id, std::move(seq));
+        return MalType(ast.id(), std::move(seq));
     }
 
     MalType eval_map(const MalType& ast, EnvPtr env) {
         Map_t map{};
-        for(const auto& [key, value] : std::get<Map_t>(ast.val))
+        for(const auto& [key, value] : std::get<Map_t>(ast.val()))
             map.insert({key, eval(value, env)});
         return Map(std::move(map));
     }
 
     EvalPair apply_lambda(std::span<MalType> args) { 
-        auto lambda = std::get<Lambda_t>(args.front().func);
+        auto lambda = std::get<Lambda_t>(args.front().func());
         auto arguments = std::vector<MalType>{args.begin()+1, args.end()};
         auto body = MalType{};
         auto lambda_env = std::shared_ptr<Environment>{};
@@ -263,12 +278,55 @@ namespace Eval {
         return std::make_shared<Environment>(lambda.env, lambda.params, std::move(args));
     }
 
+    MalType apply_defmacro(std::span<MalType> args, std::shared_ptr<Environment> env) {
+        Core::validate_args(args, 3, "def!");
+        auto value = eval(args[2], env);
+        auto key = std::get<std::string>(std::move(args[1].val()));
+        if(!value.type(Type::LAMBDA))
+            throw std::runtime_error("macro has to be a function type!");
+        auto lambda = std::get<Lambda_t>(std::move(value.func()));
+        lambda.is_macro = true;
+        env->set(std::move(key), MalType(Type::LAMBDA, lambda));
+        return value;
+    }
+
+    bool is_macro_call(MalType& ast, std::shared_ptr<Environment> env) {
+        if(ast.type(Type::LIST) && !empty(ast) && ast.fst().type(Type::SYMBOL)) {
+            if(!env->exists(ast.fst().str()))
+                return false;
+            auto lam = env->get(ast.fst().str());
+            if(lam.type(Type::LAMBDA))
+                return lam.is_macro();
+        }
+        return false;
+    }
+
+    MalType apply_macro_expand(std::span<MalType> args, std::shared_ptr<Environment> env) {
+        Core::validate_args(args, 2, "macroexpand");
+        auto ast = args[1];
+        return macro_expand(ast, env);
+    }
+
+    MalType macro_expand(MalType& ast, std::shared_ptr<Environment> env) {
+        auto lam = MalType{};
+        auto params = std::vector<MalType>{};
+        auto eval_pair = EvalPair{};
+        while(is_macro_call(ast, env)) {
+            lam = env->get(ast.fst().str());
+            params = std::vector<MalType>{ast.seq().begin()+1, ast.seq().end()};
+            params.insert(params.begin(), lam);
+            eval_pair = apply_lambda(params);
+            ast = eval(eval_pair.ast, eval_pair.env);
+        }
+        return ast;
+    }
+
     MalType apply_def(std::span<MalType> args, EnvPtr env) {
         Core::validate_args(args, 3, "def!");
-        auto key = std::get<std::string>(std::move(args[1].val));
+        auto key = std::get<std::string>(std::move(args[1].val()));
         auto value = eval(args[2], env);
-        if(value.id == Type::ATOM) {
-            value = Atom(*std::get<Atom_t>(value.val).ref, key);
+        if(value.type(Type::ATOM)) {
+            value = Atom(*std::get<Atom_t>(value.val()).ref, key);
             env->def_atom(std::move(key), value);
             return value;
         }
@@ -277,18 +335,18 @@ namespace Eval {
     }
 
     EvalPair apply_let(std::span<MalType> args, EnvPtr env) {
-        if(args[1].id != Type::LIST && args[1].id != Type::VECTOR)
+        if(args[1].type(Type::LIST) && args[1].type(Type::VECTOR))
             throw std::runtime_error("expected list or vector in let! statement! Got: "
              + to_string(args[1], true));
 
-        auto bind_list = get_seq_view(args[1]);
+        auto bind_list = args[1].seq_view();
         if(bind_list.size() % 2 != 0)
             throw std::runtime_error("expected even number of arguments in let binding list!");
 
         auto let_env = std::make_shared<Environment>(env);
         for(std::size_t i = 0; i < bind_list.size(); i+=2) {
             auto value = eval(bind_list[i+1], let_env);
-            let_env->set(std::get<std::string>(bind_list[i].val), value);
+            let_env->set(std::get<std::string>(bind_list[i].val()), value);
         }
         return {args[2], let_env};
     }   

@@ -62,6 +62,9 @@ MalType Environment::get(std::string_view name) {
     throw std::runtime_error("variable : '" + std::string{name} + "' not found");
 }
 
+bool Environment::exists(std::string_view key) {
+    return find(key).has_value();
+}
 void Environment::set(const std::map<std::string, MalType>& table) {
     for(const auto&[key, value] : table)
         data.insert_or_assign(key, value);
