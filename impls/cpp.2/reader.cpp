@@ -1,5 +1,7 @@
 #include "reader.hpp"
 #include "types.hpp"
+#include <readline/readline.h>
+#include <readline/history.h>
 
 namespace Parser {
 
@@ -49,10 +51,10 @@ namespace Parser {
         tokens.pop(); // pops delim '{'
         while(tokens.peek() != "}") {
             if(tokens.eof())
-                throw std::runtime_error("No value for key!");
+                throw std::runtime_error("EOF: No value for key!");
             auto key = read_form(tokens);
             if(tokens.eof())
-                throw std::runtime_error("No value for value!");
+                throw std::runtime_error("EOF: No value for value!");
             auto val = read_form(tokens);
             map.insert({key, val});
         }
@@ -108,7 +110,7 @@ namespace Parser {
         tokens.pop(); //pops start delim
         while(tokens.peek() != end_delim) {
             if(tokens.eof())
-                throw std::runtime_error("missing symbol'" + end_delim + "'!");
+                throw std::runtime_error("EOF: missing symbol'" + end_delim + "'!");
             mal_container.push_back(read_form(tokens));
         }
         tokens.pop(); // pops ending delim
@@ -119,17 +121,17 @@ namespace Parser {
         std::string mal_str;
         auto input_str = std::move(tokens.next());
         if(!input_str.ends_with('"') || input_str.size() <= 1) 
-            throw std::runtime_error("expected Symbol '\"'! ");
+            throw std::runtime_error("EOF: expected Symbol '\"'! ");
         input_str = input_str.substr(1, input_str.size() - 2);//remove quotes
         for(unsigned int i = 0; i < input_str.size(); i++) {
             auto c = input_str[i];
             if(input_str[i] == '\\') {
                 if(i + 1 >= input_str.size())
-                    throw std::runtime_error("expected Symbol '\"'! ");
+                    throw std::runtime_error("EOF: expected Symbol '\"'! ");
                 if(auto esc = read_escape_seq(input_str[i+1])) 
                     c = *esc;
                 else
-                    throw std::runtime_error("unexpected escape sequence!");
+                    throw std::runtime_error("EOF: unexpected escape sequence!");
                 i++;
             }
             mal_str += c;
@@ -217,5 +219,16 @@ namespace Parser {
 
     bool is_valid_bool(std::string_view str) {
         return str == "false" || str == "true";
+    }
+
+    std::optional<std::string> input(std::string_view prompt) {
+        const auto line = readline(prompt.data());
+        std::optional<std::string> result = {};
+        if(line != nullptr) 
+            result = std::string(line);
+        free(line);
+        if (result)
+            add_history(result.value().c_str());
+        return result;
     }
 }

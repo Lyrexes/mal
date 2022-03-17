@@ -2,7 +2,9 @@
 #include "types.hpp"
 #include "env.hpp"
 #include "core.hpp"
+#include "MalException.hpp"
 #include <cstddef>
+#include <exception>
 #include <iostream>
 #include <ranges>
 
@@ -11,22 +13,13 @@ using EnvPtr = Environment::EnvPtr;
 
 namespace Eval {
 
-    void called_with(std::string calle, const MalType& ast) {
-        std::cout << "called '" + calle + "' with " << Types::to_string(ast, true) << std::endl;
-    }
-
-    void called_with(std::string calle, std::span<MalType> ast) {
-        auto val = List({ast.begin(), ast.end()});
-        std::cout << "called '" + calle + "' with " << Types::to_string(val, true) << std::endl;
-    }
-
     MalType eval(const MalType& ast, EnvPtr env) {
         auto curr_pair = EvalPair{ast, env};
         while (true) {
             if(!curr_pair.ast.type(Type::LIST))
                 return eval_ast(curr_pair);
 
-            curr_pair.ast = macro_expand(curr_pair.ast, curr_pair.env);
+            curr_pair.ast = macro_expand_(curr_pair.ast, curr_pair.env);
 
             if(curr_pair.ast.type(Type::LIST)) {
 
@@ -51,6 +44,8 @@ namespace Eval {
                         return apply_quasiquote(list);
                     if(first_sym == "macroexpand")
                         return apply_macro_expand(list, curr_pair.env);
+                    if(first_sym == "try*")
+                        return apply_try_catch(list, curr_pair.env);
                     if(first_sym == "quasiquote") {
                         curr_pair.ast = apply_quasiquote(list);
                         continue;
@@ -79,11 +74,37 @@ namespace Eval {
                     curr_pair = apply_lambda(eval_list);
                     continue;
                 }
-                throw std::runtime_error("undefined symbol cant evaluate : "
+                throw std::runtime_error("EOF: undefined symbol cant evaluate : "
                  + Types::to_string(List(std::get<Container>(evaluated_ast.val())), true));
             }
             return eval_ast(curr_pair);
         }
+    }
+
+    bool is_catch_statement_valid(std::span<MalType> args) {
+        return args.size() == 3 && args[2].type(Type::LIST) && !args[2].empty()
+         && args[2].fst().str() == "catch*" && args[2].nth(1).type(Type::SYMBOL);
+    }
+
+    MalType apply_try_catch(std::span<MalType> args, std::shared_ptr<Environment> env) {
+        auto result = Nil();
+        try {
+            result = eval(args[1], env);
+        } catch (const MalException& e) {
+                if(!is_catch_statement_valid(args))
+                    throw MalException(e.get());
+                auto except_env = std::make_shared<Environment>(env);
+                except_env->set(std::get<std::string>(args[2].nth(1).val()), e.get());
+                return eval(args[2].nth(2), except_env);
+
+        } catch (const std::runtime_error& e) {
+                if(!is_catch_statement_valid(args))
+                    throw e;
+                auto except_env = std::make_shared<Environment>(env);
+                except_env->set(std::get<std::string>(args[2].nth(1).val()), String(e.what()));
+                return eval(args[2].nth(2), except_env);
+        }
+        return result;
     }
 
     MalType apply_quasiquote(std::span<MalType> args) {
@@ -141,7 +162,7 @@ namespace Eval {
 
     MalType create_lambda(std::span<MalType> args, EnvPtr env) {
         if(args.size() != 3) 
-            throw std::runtime_error("Lambda fn* needs 2 arguments: parameters and body!");
+            throw std::runtime_error("EOF: Lambda fn* needs 2 arguments: parameters and body!");
         auto arguments = std::span{args.begin()+1, args.end()};
         auto [params, is_variadic] =  validate_lambda_params(arguments[0]);
         auto body = Container{};
@@ -154,7 +175,7 @@ namespace Eval {
 
     std::pair<std::vector<std::string>,MaybeVariadic> validate_lambda_params(const MalType& params) {
         if(params.type(Type::LIST) && params.type(Type::VECTOR))
-            throw std::runtime_error("lamda parameter must be a list or vector!");
+            throw std::runtime_error("EOF: lamda parameter must be a list or vector!");
 
         auto param_list = std::vector<std::string>{};
         param_list.reserve(params.seq_view().size());
@@ -163,7 +184,7 @@ namespace Eval {
 
         for(auto param  = params_view.begin(); param != params_view.end(); ++param) {
             if(!param->type(Type::SYMBOL))
-                throw std::runtime_error("Each lamda parameter must be a Symbol! got: " 
+                throw std::runtime_error("EOF: Each lamda parameter must be a Symbol! got: " 
                 + Types::to_string(*param, true));
             if(param->str() == "&") {
                 is_variadic = std::distance(params_view.begin(), param);
@@ -190,7 +211,7 @@ namespace Eval {
         auto has_else = params.size() == 3;
 
         if(params.size() < 2 || params.size() > 3) 
-            throw std::runtime_error("if needs at least two and max three arguments!");
+            throw std::runtime_error("EOF: if needs at least two and max three arguments!");
 
         auto condition = eval(params[0], env);
 
@@ -239,7 +260,7 @@ namespace Eval {
     }
 
     EvalPair apply_lambda(std::span<MalType> args) { 
-        auto lambda = std::get<Lambda_t>(args.front().func());
+        auto const &lambda = std::get<Lambda_t>(args.front().func());
         auto arguments = std::vector<MalType>{args.begin()+1, args.end()};
         auto body = MalType{};
         auto lambda_env = std::shared_ptr<Environment>{};
@@ -274,7 +295,7 @@ namespace Eval {
 
     std::shared_ptr<Environment> get_env_lambda(const Lambda_t& lambda, std::vector<MalType> args) {
         if(args.size() != lambda.params.size())
-                throw std::runtime_error("invalid amount of arguments to call lambda!");
+                throw std::runtime_error("EOF: invalid amount of arguments to call lambda!");
         return std::make_shared<Environment>(lambda.env, lambda.params, std::move(args));
     }
 
@@ -283,7 +304,7 @@ namespace Eval {
         auto value = eval(args[2], env);
         auto key = std::get<std::string>(std::move(args[1].val()));
         if(!value.type(Type::LAMBDA))
-            throw std::runtime_error("macro has to be a function type!");
+            throw std::runtime_error("EOF: macro has to be a function type!");
         auto lambda = std::get<Lambda_t>(std::move(value.func()));
         lambda.is_macro = true;
         env->set(std::move(key), MalType(Type::LAMBDA, lambda));
@@ -304,7 +325,7 @@ namespace Eval {
     MalType apply_macro_expand(std::span<MalType> args, std::shared_ptr<Environment> env) {
         Core::validate_args(args, 2, "macroexpand");
         auto ast = args[1];
-        return macro_expand(ast, env);
+        return macro_expand_(ast, env);
     }
 
     MalType macro_expand(MalType& ast, std::shared_ptr<Environment> env) {
@@ -321,27 +342,34 @@ namespace Eval {
         return ast;
     }
 
+    MalType macro_expand_(MalType& ast, std::shared_ptr<Environment> env) {
+        auto lam = MalType{};
+        auto eval_pair = EvalPair{};
+        auto params = std::span<MalType>{};
+        while(is_macro_call(ast, env)) {
+            params = ast.seq();
+            params[0] = env->get(ast.fst().str());
+            eval_pair = apply_lambda(params);
+            ast = eval(eval_pair.ast, eval_pair.env);
+        }
+        return ast;
+    }
     MalType apply_def(std::span<MalType> args, EnvPtr env) {
         Core::validate_args(args, 3, "def!");
         auto key = std::get<std::string>(std::move(args[1].val()));
         auto value = eval(args[2], env);
-        if(value.type(Type::ATOM)) {
-            value = Atom(*std::get<Atom_t>(value.val()).ref, key);
-            env->def_atom(std::move(key), value);
-            return value;
-        }
         env->set(std::move(key), value);
         return value;
     }
 
     EvalPair apply_let(std::span<MalType> args, EnvPtr env) {
         if(args[1].type(Type::LIST) && args[1].type(Type::VECTOR))
-            throw std::runtime_error("expected list or vector in let! statement! Got: "
+            throw std::runtime_error("EOF: expected list or vector in let! statement! Got: "
              + to_string(args[1], true));
 
         auto bind_list = args[1].seq_view();
         if(bind_list.size() % 2 != 0)
-            throw std::runtime_error("expected even number of arguments in let binding list!");
+            throw std::runtime_error("EOF: expected even number of arguments in let binding list!");
 
         auto let_env = std::make_shared<Environment>(env);
         for(std::size_t i = 0; i < bind_list.size(); i+=2) {

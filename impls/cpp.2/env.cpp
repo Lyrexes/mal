@@ -6,7 +6,7 @@
 
 
 
-Environment::Environment(Maybe<EnvPtr> outer, const vec<str>& binds, const vec<MalType>& exprs):
+Environment::Environment(Maybe<EnvPtr> outer, std::span<std::string> binds, std::span<MalType> exprs):
     outer(outer) {
         assert(("key and values are diffrent size!", binds.size() == exprs.size()));
         for(std::size_t i = 0; i < binds.size(); i++) 
@@ -14,26 +14,17 @@ Environment::Environment(Maybe<EnvPtr> outer, const vec<str>& binds, const vec<M
         //std::cout << to_string()<< std::endl;
 }
 
+Environment::Environment(Maybe<EnvPtr> outer, const vec<str>& binds, const vec<MalType>& exprs) 
+    : outer(outer){
+        for(std::size_t i = 0; i < binds.size(); i++) 
+            data.insert_or_assign(binds[i], exprs[i]);
+}
+
 Environment::Environment(Maybe<EnvPtr> outer, std::map<std::string, MalType> table)
  : outer(outer), data(std::move(table)){}
 
 void Environment::set(std::string key, MalType value) {
     data.insert_or_assign(key, value);
-}
-
-void Environment::def_atom(std::string key, MalType atom) {
-    auto root = get_root_env();
-    std::cout << root->to_string() << std::endl;
-    root->set(std::move(key), std::move(atom));
-}
-
-void Environment::change_atom(std::string key, MalType atom) {
-    auto root = get_root_env();
-    std::cout << root->to_string() << std::endl;
-    if(root->data.contains(key))
-        root->data[key] = std::move(atom);
-    else
-        throw std::runtime_error("atom : '" + std::string{key} + "' not found");
 }
 
 Environment::EnvPtr Environment::get_root_env() {
@@ -59,7 +50,7 @@ Maybe<Environment::EnvPtr> Environment::find(std::string_view name) {
 MalType Environment::get(std::string_view name) {
     if(auto env = find(name)) 
         return (*env)->at(name.data());
-    throw std::runtime_error("variable : '" + std::string{name} + "' not found");
+    throw std::runtime_error("'" + std::string{name} + "' not found");
 }
 
 bool Environment::exists(std::string_view key) {
@@ -81,7 +72,7 @@ Environment::Maybe<Environment::ConstEnvPtr> Environment::find(std::string_view 
 MalType Environment::get(std::string_view name) const {
     if(auto env = find(name)) 
         return (*env)->at(name.data());
-    throw std::runtime_error("variable : '" + std::string{name} + "' not found");
+    throw std::runtime_error("'" + std::string{name} + "' not found");
 }
 
 MalType Environment::at(std::string_view name) const { 

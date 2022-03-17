@@ -41,8 +41,7 @@ using Maybe = std::optional<T>;
 
 struct Atom_t {
     MalRef ref;
-    Maybe<std::string> var;
-    Atom_t(MalRef ref, Maybe<std::string> var) : ref(ref), var(var) {}
+    explicit Atom_t(MalRef ref) : ref(ref) {}
     bool operator ==(const Atom_t& rhs) const { return ref == rhs.ref; }
     bool operator <(const Atom_t& rhs) const { return ref < rhs.ref; }
 };
@@ -80,6 +79,9 @@ struct MalType {
     bool operator ==(const MalType& rhs) const { return m_val == rhs.m_val; }
     bool operator <(const MalType& rhs) const { return m_val < rhs.m_val; }
 
+    MalRef getMeta() const { return m_meta; }
+    void setMeta(MalRef meta) { m_meta = std::move(meta); }
+
     long intv() const;
     double floatv() const;
     bool boolv() const;
@@ -98,10 +100,12 @@ struct MalType {
     const Functor& func() const;
     DataType& val();
     Functor& func();
+
 private:
     Type m_id{};
     DataType m_val{};
     Functor m_func{};
+    MalRef m_meta{};
 };
 
 struct EvalPair {
@@ -123,7 +127,7 @@ namespace Types {
     std::string unescape_char(char c);
     Type get_number_type(double val);
 
-    MalType Atom(MalType mal_val, std::optional<std::string> var);
+    MalType Atom(MalType mal_val);
     MalType String(std::string string);
     MalType Symbol(std::string symbol);
     MalType Float(double num);

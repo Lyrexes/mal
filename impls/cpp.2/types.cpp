@@ -155,91 +155,14 @@ namespace Types {
          Lambda_t(std::move(params), std::move(body), env, is_variadic, is_macro));
     }
 
-    MalType Atom(MalType mal_val, Maybe<std::string> var) { 
+    MalType Atom(MalType mal_val) { 
         return MalType(Type::ATOM, 
-        Atom_t(std::make_shared<MalType>(std::move(mal_val)), std::move(var)));
+        Atom_t(std::make_shared<MalType>(std::move(mal_val))));
     }
 
     void type_error(std::string&& expected, std::string&& got) {
-        throw std::runtime_error("TypeError: expected type: " + expected + ", got: " + got);
+        throw std::runtime_error("EOF: TypeError: expected type: " + expected + ", got: " + got);
     }
-/**
-    long get_int(const MalType& type) {
-        if(type.id != Type::INT)
-            type_error("int", to_string(type, true));
-        return std::roundl(std::get<double>(type.val));
-    }
-
-    double get_float(const MalType& type) {
-        if(type.id != Type::FLOAT)
-            type_error("float", to_string(type, true));
-        return std::get<double>(type.val);
-    }
-
-    bool get_bool(const MalType& type) {
-        if(type.id != Type::BOOL)
-            type_error("bool", to_string(type, true));
-        return std::get<bool>(type.val);
-    }
-
-    std::string_view get_str(const MalType& type) {
-        if(type.id != Type::STRING && type.id != Type::KEYWORD
-         &&type.id != Type::SYMBOL)
-            type_error("string-type", to_string(type, true));
-        return std::get<std::string>(type.val);
-    }
-
-    std::span<const MalType> get_seq_view(const MalType& type) {
-        if(type.id != Type::LIST && type.id != Type::VECTOR )
-            type_error("container-type", to_string(type, true));
-        return std::get<Container>(type.val);
-    }
-
-    std::span<MalType> get_seq(MalType& type) {
-        if(type.id != Type::LIST && type.id != Type::VECTOR )
-            type_error("container-type", to_string(type, true));
-        return std::get<Container>(type.val);
-    }
-
-    MalType& fst(MalType& type) {
-        if(get_seq(type).empty())
-            throw std::invalid_argument("fst: cannot call fst on empty seq!");
-        return get_seq(type)[0];
-    }
-
-    MalType& nth_elem(std::size_t index, MalType& type) {
-        auto seq = get_seq(type);
-        if(seq.size() <= index)
-            throw std::invalid_argument("get_nth: index out of bounds!");
-        return seq[index];
-    }
-
-    bool empty(MalType& seq) {
-        return get_seq(seq).empty();
-    }
-
-    bool is_type(const MalType& mal, Type type) {
-        return mal.id == type;
-    }
-
-    bool is_macro(const MalType& mal) {
-        if(!is_type(mal, Type::LAMBDA))
-            throw std::runtime_error("is_macro t: expected lambda!");
-        return std::get<Lambda_t>(mal.func).is_macro;
-    }
-
-    std::span<MalType> get_sub_seq(MalType& type, std::size_t offset, std::size_t count) {
-        if(get_seq(type).size() <= offset + count)
-            throw std::invalid_argument("get_sub_seq: index out of bounds!");
-        return get_seq(type).subspan(offset, count);
-    }
-
-    std::span<MalType> get_sub_seq(MalType& type, std::size_t offset) {
-        if(get_seq(type).size() <= offset)
-            throw std::invalid_argument("get_sub_seq: index out of bounds!");
-        return get_seq(type).subspan(offset);
-    }
-    **/
 }
 
 long MalType::intv() const {
@@ -281,25 +204,25 @@ std::span<MalType> MalType::seq()  {
 
 std::span<MalType> MalType::sub_seq(std::size_t offset, std::size_t count) {
     if(this->seq().size() <= offset + count)
-        throw std::invalid_argument("get_sub_seq: index out of bounds!");
+        throw std::runtime_error("EOF: get_sub_seq: index out of bounds!");
     return this->seq().subspan(offset, count);
 }
 
 std::span<MalType> MalType::sub_seq(std::size_t offset) {
     if(this->seq().size() <= offset)
-        throw std::invalid_argument("get_sub_seq: index out of bounds!");
+        throw std::runtime_error("EOF: get_sub_seq: index out of bounds!");
     return this->seq().subspan(offset);
 }
 
 MalType& MalType::fst() {
     if(this->empty())
-        throw std::invalid_argument("fst: cannot call fst on empty seq!");
+        throw std::runtime_error("EOF: fst: cannot call fst on empty seq!");
     return this->seq()[0];
 }
 
 MalType& MalType::nth(std::size_t index) {
     if(this->seq().size() <= index)
-        throw std::invalid_argument("get_nth: index out of bounds!");
+        throw std::runtime_error("EOF: get_nth: index out of bounds!");
     return this->seq()[index];
 }
 
@@ -313,7 +236,7 @@ bool MalType::type(Type type) const {
 
 bool MalType::is_macro() const {
     if(!this->type(Type::LAMBDA))
-        throw std::runtime_error("is_macro t: expected lambda!");
+        throw std::runtime_error("EOF: is_macro t: expected lambda!");
     return std::get<Lambda_t>(m_func).is_macro;
 }
 

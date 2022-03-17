@@ -9,6 +9,7 @@
 #include "types.hpp"
 #include "eval.hpp"
 #include "core.hpp"
+#include "MalException.hpp"
 // #define NDEBUG
 
 using namespace Types;

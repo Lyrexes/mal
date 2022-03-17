@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/step8_macros",
+            "program": "${workspaceFolder}/step9_try",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

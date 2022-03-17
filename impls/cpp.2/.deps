@@ -1,7 +1,8 @@
 core.o: core.cpp core.hpp eval.hpp types.hpp printer.hpp reader.hpp \
- env.hpp
+ env.hpp MalException.hpp
 env.o: env.cpp env.hpp types.hpp eval.hpp
-eval.o: eval.cpp eval.hpp types.hpp env.hpp core.hpp
+eval.o: eval.cpp eval.hpp types.hpp env.hpp core.hpp MalException.hpp
+MalException.o: MalException.cpp MalException.hpp types.hpp
 printer.o: printer.cpp printer.hpp types.hpp
 reader.o: reader.cpp reader.hpp types.hpp
 step0_repl.o: step0_repl.cpp
@@ -20,4 +21,8 @@ step7_quote.o: step7_quote.cpp env.hpp reader.hpp printer.hpp types.hpp \
  eval.hpp core.hpp
 step8_macros.o: step8_macros.cpp env.hpp reader.hpp printer.hpp types.hpp \
  eval.hpp core.hpp
+step9_try.o: step9_try.cpp env.hpp reader.hpp printer.hpp types.hpp \
+ eval.hpp core.hpp MalException.hpp
+stepA_mal.o: stepA_mal.cpp env.hpp reader.hpp printer.hpp types.hpp \
+ eval.hpp core.hpp MalException.hpp
 types.o: types.cpp types.hpp

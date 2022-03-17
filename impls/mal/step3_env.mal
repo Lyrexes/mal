@@ -10,7 +10,7 @@
 
 ;; eval
 (def! eval-ast (fn* [ast env]
-  ;; (do (prn "eval-ast" ast "/" (keys @env)) )
+  ;;(do (prn "eval-ast" ast "/" (keys @env)) 
   (cond
     (symbol? ast) (env-get env ast)
 
@@ -26,15 +26,19 @@
     "else"        ast)))
 
 (def! LET (fn* [env binds form]
+  (do 
+  ;;(reset! env (hash-map))
+  ;;(if (empty? binds) (prn "LET env: " env) (prn "key: " (first binds) "val: " (EVAL (nth binds 1) env) "LET env: " env))
   (if (empty? binds)
     (EVAL form env)
-    (do
+    (do 
       (env-set env (first binds) (EVAL (nth binds 1) env))
-      (LET env (rest (rest binds)) form)))))
+      (LET env (rest (rest binds)) form))))))
 
 (def! EVAL (fn* [ast env]
-  ;; (do (prn "EVAL" ast "/" (keys @env)) )
   (try*
+
+  ;;(do (prn "EVAL" ast "/" (keys @env)) 
     (if (not (list? ast))
       (eval-ast ast env)
 

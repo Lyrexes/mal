@@ -4,6 +4,7 @@
 #include <optional>
 #include <map>
 #include <vector>
+#include <span>
 
 class MalType;
 class Atom_t;
@@ -18,12 +19,13 @@ class Environment :  public std::enable_shared_from_this<Environment>{
         using vec = std::vector<T>;
         using str = std::string;
     public:
-        Environment(Maybe<EnvPtr> outer={}, const vec<str>& binds={}, const vec<MalType>& exprs={});
+        Environment(Maybe<EnvPtr> outer={}, std::span<str> binds={}, std::span<MalType> exprs={});
+        Environment(Maybe<EnvPtr> outer, const vec<str>& binds, const vec<MalType>& exprs);
         Environment(Maybe<EnvPtr> outer, std::map<std::string, MalType> table);
         void set(std::string key, MalType value);
         void set(const std::map<std::string, MalType>& table);
-        void def_atom(std::string key, MalType atom);
-        void change_atom(std::string key, MalType value);
+        //void def_atom(std::string key, MalType atom);
+        //void change_atom(std::string key, MalType value);
         bool exists(std::string_view key);
         EnvPtr get_root_env();
         Maybe<EnvPtr> find(std::string_view name);

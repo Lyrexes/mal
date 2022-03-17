@@ -42,6 +42,8 @@ namespace Parser {
 
     std::optional<char> read_escape_seq(char code);
 
+    std::optional<std::string> input(std::string_view prompt);
+
     bool is_valid_float(std::string_view str);
     bool is_valid_int(std::string_view str);
     bool is_valid_nil(std::string_view str);
