@@ -13,6 +13,7 @@ pub enum MalType {
     Keyword(Rc<String>),
     Builtin(fn(Args)->MalRet),
     Lambda(Rc<dyn Fn(Args)->Result<(MalType, Env),MalError>>),
+    Macro(Rc<dyn Fn(Args)->Result<(MalType, Env),MalError>>),
     Atom(Rc<RefCell<MalType>>),
     Number(i64),
     Bool(bool),
@@ -150,12 +151,16 @@ impl MalType {
             MalType::Symbol(s) => symbol!((**s).clone()),
             MalType::String(s) => string!((**s).clone()),
             MalType::Keyword(s) => keyword!((**s).clone()),
-            MalType::Builtin(_) | MalType::Lambda(_) => self.clone(),
+            MalType::Builtin(_) | MalType::Lambda(_) | MalType::Macro(_) => self.clone(),
             MalType::Atom(a) => atom!((**a).borrow().deep_copy()),
             MalType::Number(n) => MalType::Number(*n),
             MalType::Bool(b) => MalType::Bool(*b),
             MalType::Nil => self.clone(),
         }
+    }
+
+    pub fn is_same_type(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
     }
 }
 
@@ -167,7 +172,9 @@ pub type Args<'a> = &'a[MalType];
 impl fmt::Debug for MalType {
     fn fmt<'a>(&'a self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MalType::Builtin(_) | MalType::Lambda(_)  => {
+            MalType::Builtin(_) |
+             MalType::Lambda(_) | 
+             MalType::Macro(_)  => {
                 f.debug_tuple("Function")
                  .finish()
             },

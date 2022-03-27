@@ -16,7 +16,8 @@ pub fn pr_str(ast: &MalType, readably: bool) -> Result<String, String> {
         MalType::Keyword(k) => Ok(print_keyword(&(**k))),
         MalType::Number(n) => Ok(n.to_string()),
         MalType::Bool(b) => Ok(print_bool(b)),
-        MalType::Builtin(_) | MalType::Lambda(_) => Ok("#<function>".to_owned()),
+        MalType::Builtin(_) | MalType::Lambda(_)
+        | MalType::Macro(_) => Ok("#<function>".to_owned()),
         MalType::Nil => Ok("nil".to_owned()),
     }
 }

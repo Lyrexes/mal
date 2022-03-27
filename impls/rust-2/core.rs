@@ -57,8 +57,63 @@ pub fn get_ns() -> FnvHashMap<String, MalType> {
         "swap!"       => Builtin(swap),
         "concat"      => Builtin(concat),
         "cons"        => Builtin(cons),
-        "vec"         => Builtin(vec)
+        "vec"         => Builtin(vec),
+        "nth"         => Builtin(nth),  
+        "first"       => Builtin(first),
+        "rest"        => Builtin(rest)
     ]
+}
+
+fn nth(args: Args) -> MalRet {
+    validate_args(args, 2, "nth")?;
+    match (&args[0], &args[1]) {
+        (List(ref seq) | Vector(ref seq), Number(index))
+            if seq.len() > *index as usize => {
+            Ok(seq[*index as usize].clone())
+        }
+        _ => Err(
+            "EOF: nth failed because of type error or index out of bounds!"
+            .to_owned()
+        )
+    }
+}
+
+fn first(args: Args) -> MalRet {
+    validate_args(args, 1, "first")?;
+    match args[0] {
+        List(ref seq) | Vector(ref seq)
+            if !seq.is_empty() => {
+            Ok(seq[0].clone())
+        }
+        List(ref seq) | Vector(ref seq)
+            if seq.is_empty() => {
+            Ok(Nil)
+        }
+        Nil => Ok(Nil),
+        _ => Err(
+            "EOF: first expected a sequence type!"
+            .to_owned()
+        )
+    }
+}
+
+fn rest(args: Args) -> MalRet {
+    validate_args(args, 1, "first")?;
+    match args[0] {
+        List(ref seq) | Vector(ref seq)
+            if !seq.is_empty() => {
+            Ok(list![seq[1..].to_vec()])
+        }
+        List(ref seq) | Vector(ref seq)
+            if seq.is_empty() => {
+            Ok(list![])
+        }
+        Nil => Ok(list![]),
+        _ => Err(
+            "EOF: first expected a sequence type!"
+            .to_owned()
+        )
+    }
 }
 
 fn vec(args:Args) -> MalRet {
