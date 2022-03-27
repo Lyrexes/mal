@@ -2,6 +2,7 @@
 name = "rust-2"
 version = "0.1.0"
 edition = "2018"
+default-run = "step7_quote"
 
 [dependencies]
 rustyline = "9.1.2"
@@ -21,3 +22,23 @@ path = "step1_read_print.rs"
 [[bin]]
 name = "step2_eval"
 path = "step2_eval.rs"
+
+[[bin]]
+name = "step3_env"
+path = "step3_env.rs"
+
+[[bin]]
+name = "step4_if_fn_do"
+path = "step4_if_fn_do.rs"
+
+[[bin]]
+name = "step5_tco"
+path = "step5_tco.rs"
+
+[[bin]]
+name = "step6_file"
+path = "step6_file.rs"
+
+[[bin]]
+name = "step7_quote"
+path = "step7_quote.rs"

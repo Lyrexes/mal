@@ -1,8 +1,8 @@
-use std::{collections::VecDeque, rc::Rc, borrow::Borrow, num::ParseIntError};
+use std::{collections::VecDeque, rc::Rc};
 use fnv::FnvHashMap;
 use lazy_static::lazy_static;
 use regex::Regex;
-use crate::{types::*, symbol, list, read};
+use crate::{types::*, symbol, list};
 
 pub struct TokenStream {
     tokens: VecDeque<String>, 

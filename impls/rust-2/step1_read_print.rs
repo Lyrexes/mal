@@ -5,6 +5,7 @@ use types::MalType;
 mod reader;
 mod types;
 mod printer;
+mod env;
 
 fn main() {
     loop {

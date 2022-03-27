@@ -1,10 +1,9 @@
-use std::{rc::Rc};
 use fnv::FnvHashMap;
-
-use crate::{types::*, read};
+use crate::types::*;
 
 pub fn pr_str(ast: &MalType, readably: bool) -> Result<String, String> {
     match ast {
+        MalType::Atom(a)   => Ok(format!("(atom {})", pr_str(&(**a).borrow().clone(), readably)?)),
         MalType::HashMap(m) => print_map(m, readably),
         MalType::Vector(v) => {
             print_seq( &(**v), '[', ']', readably)
@@ -17,7 +16,7 @@ pub fn pr_str(ast: &MalType, readably: bool) -> Result<String, String> {
         MalType::Keyword(k) => Ok(print_keyword(&(**k))),
         MalType::Number(n) => Ok(n.to_string()),
         MalType::Bool(b) => Ok(print_bool(b)),
-        MalType::Builtin(_) => Ok("#<function>".to_owned()),
+        MalType::Builtin(_) | MalType::Lambda(_) => Ok("#<function>".to_owned()),
         MalType::Nil => Ok("nil".to_owned()),
     }
 }

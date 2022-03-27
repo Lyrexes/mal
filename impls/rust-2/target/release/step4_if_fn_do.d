@@ -1,0 +1,1 @@
+/home/rubs/mal/impls/rust-2/target/release/step4_if_fn_do: /home/rubs/mal/impls/rust-2/core.rs /home/rubs/mal/impls/rust-2/env.rs /home/rubs/mal/impls/rust-2/printer.rs /home/rubs/mal/impls/rust-2/reader.rs /home/rubs/mal/impls/rust-2/step4_if_fn_do.rs /home/rubs/mal/impls/rust-2/types.rs

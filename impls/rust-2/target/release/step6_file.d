@@ -1,0 +1,1 @@
+/home/rubs/mal/impls/rust-2/target/release/step6_file: /home/rubs/mal/impls/rust-2/core.rs /home/rubs/mal/impls/rust-2/env.rs /home/rubs/mal/impls/rust-2/printer.rs /home/rubs/mal/impls/rust-2/reader.rs /home/rubs/mal/impls/rust-2/step6_file.rs /home/rubs/mal/impls/rust-2/types.rs

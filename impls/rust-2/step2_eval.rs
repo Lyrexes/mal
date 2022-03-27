@@ -8,7 +8,7 @@ use types::{MalType, MalType::Number, MalType::Symbol, MalType::Vector,
 mod reader;
 mod types;
 mod printer;
-
+mod env;
 type EnvTable = FnvHashMap<String, MalType>;
 
 
