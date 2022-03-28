@@ -29,7 +29,10 @@ fn main() {
             Ok(line) => 
             println!("{}", match rep(line, &mut repl_env) {
                 Ok(str) => str,
-                Err(err) => err
+                Err(err) => match err {
+                    MalError::MalVal(v) => pr_str(&v, true),
+                    MalError::Message(msg) => format!("EOF: {}", msg),
+                }
             }),
             _ => return,
         }
@@ -87,8 +90,8 @@ fn input(prompt: &str) -> Result<String, ReadlineError> {
     input
 }
 
-fn rep(string: String, env: &mut Env) -> Result<String, String> {
-    print(eval(&read(string)?,env)?)
+fn rep(string: String, env: &mut Env) -> Result<String, MalError> {
+    Ok(print(eval(&read(string)?,env)?))
 }
 
 fn read(string: String) -> MalRet  {
@@ -137,7 +140,7 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
                     validate_args(&list, 2, "quote")?;
                     return Ok(list[1].clone())
                 }
-                Symbol(s) if **s == "macroexpand" => return macroexpand(&list[1..], &env),
+                Symbol(s) if **s == "macroexpand" => return macroexpand(&list[1..], &curr_env),
                 Symbol(s) if **s == "quasiquoteexpand" => return Ok(quasiquote(&list[1..])?),
                 Symbol(s) if **s == "fn*"  => return create_lambda(&list[1..], &curr_env),
                 _ => {
@@ -148,7 +151,7 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
                         }
                         return Ok(eval_list[0].apply(&eval_list[1..])?)
                     } else {
-                        unreachable!("EOF: expected list!");
+                        unreachable!("expected list!");
                     }
                 }
             }
@@ -161,7 +164,7 @@ fn eval_ast(ast: &MalType, env: &mut Env) -> MalRet {
     match ast {
         Symbol(sym) => {
             Ok(env.get(&(**sym))
-             .ok_or(format!("EOF: {} not found!", sym.to_string()))?
+             .ok_or(MalError::Message(format!("{} not found!", sym.to_string())))?
              .clone()
             )
         }
@@ -190,7 +193,7 @@ fn eval_ast(ast: &MalType, env: &mut Env) -> MalRet {
     }
 }
 
-fn print(ast: MalType) -> Result<String, String> {
+fn print(ast: MalType) -> String {
     pr_str(&ast, true)
 }
 
@@ -246,7 +249,7 @@ fn apply_def(args: &[MalType], env: &mut Env) -> MalRet {
         env.set((**key).clone(), eval_val.clone());
         return Ok(eval_val);
     }
-    Err(format!("EOF: binding var must be a symbol! got: {}", pr_str(&args[1], true)?))
+    error_msg!(format!("binding var must be a symbol! got: {}", pr_str(&args[1], true)))
 }
 
 fn apply_defmacro(args: &[MalType], env: &mut Env) -> MalRet {
@@ -257,12 +260,12 @@ fn apply_defmacro(args: &[MalType], env: &mut Env) -> MalRet {
             env.set((**key).clone(), Macro(l.clone()));
             Ok(Macro(l.clone()))
         } else {
-            Err("EOF: Macros must be functions!".to_string())
+            error_msg!("Macros must be functions!".to_string())
         }
     } else {
-        Err(format!(
-         "EOF: binding var must be a symbol! got: {}",
-          pr_str(&args[1], true)?
+        error_msg!(format!(
+         "binding var must be a symbol! got: {}",
+            pr_str(&args[1], true)
         ))
     }
 }
@@ -303,7 +306,7 @@ fn apply_let(args: &[MalType], env: &Env) -> Result<(MalType, Env), MalError> {
     match args[0] {
         List(ref binds) | Vector(ref binds) => {
             if binds.len() % 2 != 0 {
-                return Err("EOF: let bindings must be balanced!".to_string())
+                return error_msg!("let bindings must be balanced!".to_string())
             }
             let_env.reserve(binds.len() / 2 as usize);
             let mut bind_iter = binds.iter();
@@ -312,12 +315,12 @@ fn apply_let(args: &[MalType], env: &Env) -> Result<(MalType, Env), MalError> {
                     let eval_val = eval(bind_iter.next().unwrap(), &mut let_env)?;
                     let_env.set(key.to_string(), eval_val);
                 } else {
-                    return Err("EOF: bindings must be symbols!".to_string())
+                    return error_msg!("bindings must be symbols!".to_string())
                 }
             }
             Ok((args[1].clone(), let_env))
         }
-        _ => Err("EOF: let needs bind list!".to_string())
+        _ => error_msg!("let needs bind list!".to_string())
     }
 
 }
@@ -369,10 +372,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
              .all(|x| if let Symbol(_) = x {true} else {false});
 
             if !all_sym{
-                return Err(
-                    "EOF: invalid fucntion paramter must be a symbol!"
-                    .to_string()
-                )
+                return error_msg!("invalid fucntion paramter must be a symbol!")
             }
             let old_env = env.clone();
             let body = args[1].clone();
@@ -389,10 +389,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
             if let Some(vari_i) = lambda_params.iter().position(|x| **x == "&") {
                 lambda_params.remove(vari_i);
                 if *lambda_params.last().unwrap() != lambda_params[vari_i] {
-                    return Err(
-                    "EOF: after a variadic parameter cant be another parameter!"
-                    .to_string()
-                    )
+                    return error_msg!("after a variadic parameter cant be another parameter!")
                 }
                 Ok(Lambda(Rc::new(move |arguments: &[MalType]| -> Result<(MalType,Env), MalError> {
                     let mut lambda_env = Env::new_env(Some(old_env.clone()));
@@ -404,10 +401,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
             } else {
                 Ok(Lambda(Rc::new(move |arguments: &[MalType]| -> Result<(MalType,Env), MalError> {
                     if lambda_params.len() != arguments.len() {
-                        return Err(
-                            "EOF: invalid lambda call not enough arguments!"
-                            .to_string()
-                        )
+                        return error_msg!("invalid lambda call not enough arguments!")
                     }
                     Ok((body.clone(), Env::with_binds(
                         Some(old_env.clone()),
@@ -417,10 +411,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
                 })))
             }
         }
-        _ => Err(
-                "EOF: invalid lambda call, parameters must be a list or vector!"
-                .to_string()
-            )
+        _ => error_msg!("invalid lambda call, parameters must be a list or vector!")
     }
 }
 

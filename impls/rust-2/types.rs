@@ -21,6 +21,16 @@ pub enum MalType {
 }
 
 #[macro_export]
+macro_rules! error_msg {
+    ($msg:expr) => { Err(MalError::Message($msg.to_string())) }
+}
+
+#[macro_export]
+macro_rules! error_type {
+    ($sym:expr) => { Err(MalError::MalVal(sym.clone())) }
+}
+
+#[macro_export]
 macro_rules! symbol {
     ($sym:expr) => { MalType::Symbol(Rc::new($sym.to_string())) }
 }
@@ -114,7 +124,7 @@ impl MalType {
     pub fn apply(&self, args: Args) -> MalRet {
         match self {
             MalType::Builtin(b) => b(args),
-            _ => Err("EOF: Only can apply function types!".to_string())
+            _ => error_msg!("Only can apply function types!")
         }
     }
 
@@ -164,10 +174,14 @@ impl MalType {
     }
 }
 
-pub type MalError = String;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MalError {
+    MalVal(MalType),
+    Message(String)
+}
+
 pub type MalRet   = Result<MalType, MalError>;
 pub type Args<'a> = &'a[MalType];
-
 
 impl fmt::Debug for MalType {
     fn fmt<'a>(&'a self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {

@@ -1,7 +1,7 @@
 use printer::pr_str;
 use reader::read_str;
 use rustyline::error::ReadlineError;
-use types::MalType;
+use types::{MalType, MalError};
 mod reader;
 mod types;
 mod printer;
@@ -13,7 +13,10 @@ fn main() {
             Ok(line) => 
             println!("{}", match rep(line) {
                 Ok(str) => str,
-                Err(err) => err
+                Err(err) => match err {
+                    MalError::MalVal(v) => pr_str(&v, true),
+                    MalError::Message(msg) => format!("EOF: {}", msg),
+                }
             }),
             _ => return,
         }
@@ -26,18 +29,18 @@ fn input(prompt: &str) -> Result<String, ReadlineError> {
     input
 }
 
-fn rep(string: String) -> Result<String, String> {
-    print(eval(read(string)?)?)
+fn rep(string: String) -> Result<String, MalError> {
+    Ok(print(eval(read(string)?)?))
 }
 
-fn read(string: String) -> Result<MalType, String>  {
+fn read(string: String) -> Result<MalType, MalError>  {
     read_str(string)
 }
 
-fn eval(ast: MalType) -> Result<MalType, String> {
+fn eval(ast: MalType) -> Result<MalType, MalError> {
     Ok(ast)
 }
 
-fn print(ast: MalType) -> Result<String, String> {
+fn print(ast: MalType) -> String {
     pr_str(&ast, true)
 }

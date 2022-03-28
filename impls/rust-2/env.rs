@@ -90,7 +90,7 @@ impl EnvInterface for Env {
                      .insert((**key).clone(), exprs[index].clone());
                 },
                 _ => return Err(
-                    "EOF: expected Symbol in bindings!"
+                    "expected Symbol in bindings!"
                     .to_owned()
                 )
             }

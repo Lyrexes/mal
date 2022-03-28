@@ -5,7 +5,7 @@ use std::fs;
 use crate::types::{MalType, MalRet, Args,MalError};
 use crate::types::MalType::{Builtin, Lambda, Nil, Number, Atom, Vector, List, Bool};
 use crate::{string, list, atom};
-use crate::{pr_str, read_str};
+use crate::{pr_str, read_str, error_msg};
 use crate::eval;
 
 
@@ -60,8 +60,14 @@ pub fn get_ns() -> FnvHashMap<String, MalType> {
         "vec"         => Builtin(vec),
         "nth"         => Builtin(nth),  
         "first"       => Builtin(first),
-        "rest"        => Builtin(rest)
+        "rest"        => Builtin(rest),
+        "throw"       => Builtin(throw)
     ]
+}
+
+fn throw(args: Args) -> MalRet {
+    validate_args(args, 1, "throw")?;
+    Err(MalError::MalVal(args[0].clone()))
 }
 
 fn nth(args: Args) -> MalRet {
@@ -71,8 +77,8 @@ fn nth(args: Args) -> MalRet {
             if seq.len() > *index as usize => {
             Ok(seq[*index as usize].clone())
         }
-        _ => Err(
-            "EOF: nth failed because of type error or index out of bounds!"
+        _ => error_msg!(
+            "nth failed because of type error or index out of bounds!"
             .to_owned()
         )
     }
@@ -90,8 +96,8 @@ fn first(args: Args) -> MalRet {
             Ok(Nil)
         }
         Nil => Ok(Nil),
-        _ => Err(
-            "EOF: first expected a sequence type!"
+        _ => error_msg!(
+            "first expected a sequence type!"
             .to_owned()
         )
     }
@@ -109,10 +115,7 @@ fn rest(args: Args) -> MalRet {
             Ok(list![])
         }
         Nil => Ok(list![]),
-        _ => Err(
-            "EOF: first expected a sequence type!"
-            .to_owned()
-        )
+        _ => error_msg!("first expected a sequence type!")
     }
 }
 
@@ -121,7 +124,7 @@ fn vec(args:Args) -> MalRet {
     match args[0] {
         List(ref v) => Ok(MalType::Vector(v.clone())),
         Vector(_) => Ok(args[0].clone()),
-        _ => Err("EOF: vec can aonly be called with sequence tpyes!".to_owned())
+        _ => error_msg!("vec can aonly be called with sequence tpyes!")
     }
 }   
 
@@ -145,7 +148,7 @@ fn swap(args:Args) -> MalRet{
             a.replace(new_val.deep_copy());
             Ok(new_val)
         }
-        _ => Err("EOF: swap needs a Atom and a function!".to_owned()),
+        _ => error_msg!("swap needs a Atom and a function!"),
     }
 }
 
@@ -155,7 +158,7 @@ fn concat(args: Args) -> MalRet {
         if let List(ref seq) | Vector(ref seq) = arg {
             size += seq.len();
         } else {
-            return Err("EOF: concat needs a lists or vectors!".to_string());
+            return error_msg!("concat needs a lists or vectors!");
         }
     }
     
@@ -175,7 +178,7 @@ fn cons(args:Args) -> MalRet {
         new_seq.insert(0, args[0].clone());
         Ok(list!(new_seq))
     } else {
-        Err("EOF: cons needs a list".to_owned())
+        error_msg!("cons needs a sequence type!")
     }
 }
 
@@ -185,7 +188,7 @@ fn reset(args:Args) ->MalRet {
         (**a).replace(args[1].deep_copy());
         Ok(args[1].clone())
     } else {
-        Err("EOF: only atoms can be reseted!".to_string())
+        error_msg!("only atoms can be reseted!")
     }
 }   
 
@@ -199,7 +202,7 @@ fn deref(args: Args) -> MalRet {
     if let Atom(ref a) = args[0] {
         Ok((**a).borrow().clone())
     } else {
-        Err("EOF: can only deref atoms!".to_string())
+        error_msg!("can only deref atoms!")
     }
 }
 
@@ -213,11 +216,11 @@ fn slurp(args: Args) -> MalRet {
     if let MalType::String(ref filename) = args[0] {
         let contents = match fs::read_to_string((**filename).to_owned()) {
             Ok(contents) => contents,
-            Err(err) =>  return Err(err.to_string())
+            Err(err) =>  return error_msg!(err)
         };
         Ok(string!(contents))
     } else {
-        Err("EOF: slurp expected string!".to_owned())
+        error_msg!("slurp expected string!")
     }
 }
 
@@ -226,7 +229,7 @@ fn read_string(args: Args) -> MalRet {
     if let MalType::String(ref str) = args[0] { 
         read_str((**str).to_owned())
     } else {
-        Err("EOF: read-string expected string!".to_owned())
+        error_msg!("read-string expected string!")
     }
 }
 
@@ -253,14 +256,14 @@ fn count(args: Args) -> MalRet {
     match args[0] {
         List(ref seq) | Vector(ref seq) => Ok(Number(seq.len() as i64)),
         Nil => Ok(Number(0)),
-        _=> Err("EOF: only a seq can be counted!".to_owned())
+        _=> error_msg!("only a seq can be counted!")
     }
 }
 fn is_empty(args: Args) -> MalRet {
     validate_args(args, 1, "empty?")?;
     match args[0] {
         List(ref seq) | Vector(ref seq) => Ok(Bool(seq.is_empty())),
-        _=> Err("EOF: only a seq can be empty!".to_owned())
+        _=> error_msg!("only a seq can be empty!")
     }
 }
 
@@ -279,8 +282,7 @@ fn list(args: Args) -> MalRet {
 
 fn to_str(args: Args) -> MalRet { 
     Ok(string!(args.iter()
-     .map(|x|pr_str(x, false).ok())
-     .flatten()
+     .map(|x|pr_str(x, false))
      .collect::<Vec<_>>()
      .join("")))
 }
@@ -288,8 +290,7 @@ fn to_str(args: Args) -> MalRet {
 pub fn println(args: Args) -> MalRet { 
     println!("{}",
      args.iter()
-     .map(|x|pr_str(x, false).ok())
-     .flatten()
+     .map(|x|pr_str(x, false))
      .collect::<Vec<_>>()
      .join(" "));
      Ok(Nil)
@@ -297,8 +298,7 @@ pub fn println(args: Args) -> MalRet {
 
 fn prn_str(args: Args) -> MalRet { 
     Ok(string!(args.iter()
-     .map(|x|pr_str(x, true).ok())
-     .flatten()
+     .map(|x|pr_str(x, true))
      .collect::<Vec<_>>()
      .join(" ")))
 }
@@ -306,8 +306,7 @@ fn prn_str(args: Args) -> MalRet {
 fn prn(args: Args) -> MalRet { 
     println!("{}",
      args.iter()
-     .map(|x|pr_str(x, true).ok())
-     .flatten()
+     .map(|x|pr_str(x, true))
      .collect::<Vec<_>>()
      .join(" "));
      Ok(Nil)
@@ -329,7 +328,7 @@ fn div(args: Args) -> MalRet {
     num_op(args, "/", |x, y| {
         Ok(Number(
         x.checked_div(y)
-        .ok_or("EOF: invalid division!".to_string())?
+        .ok_or(MalError::Message("invalid division!".to_owned()))?
         ))
     })
 }
@@ -338,19 +337,17 @@ fn num_op(args: Args, op: &str, f: fn(i64, i64) -> MalRet) -> MalRet {
     validate_args(args, 2, op)?;
     match (&args[0],  &args[1]) {
         (Number(ref lhs), Number(ref rhs)) => f(*lhs, *rhs),
-        (ref first, ref second) => Err(
-          format!("EOF: invalid type for operation: {}, need number got: {} and {}",
-          op,
-          pr_str(first, true)?,
-          pr_str(second, true)?)
+        (ref first, ref second) => error_msg!(
+          format!("invalid type for operation: {}, need number got: {} and {}",
+          op, pr_str(first, true), pr_str(second, true)) 
         )
     }
 }
 
 pub fn validate_args(args: &[MalType], count: usize, str: &str) -> Result<(), MalError> {
     if args.len() != count {
-        Err(
-         format!("EOF: invalid argument count for: {}, got: {}, need: {}",
+        error_msg!(
+         format!("invalid argument count for: {}, got: {}, need: {}",
                 str, args.len(), count)
         )
     } else {
@@ -360,8 +357,8 @@ pub fn validate_args(args: &[MalType], count: usize, str: &str) -> Result<(), Ma
 
 pub fn validate_args_at_least(args: &[MalType], count: usize, str: &str) -> Result<(), MalError> {
     if args.len() < count {
-        Err(
-         format!("EOF: invalid argument count for: {}, got: {}, need: {} ore more!",
+        error_msg!(
+         format!("invalid argument count for: {}, got: {}, need: {} ore more!",
                 str, args.len(), count)
         )
     } else {
@@ -371,8 +368,8 @@ pub fn validate_args_at_least(args: &[MalType], count: usize, str: &str) -> Resu
 
 pub fn validate_arg_bounds(args: &[MalType], min: usize, max: usize, str: &str) -> Result<(), MalError> {
     if args.len() < min || args.len() > max {
-        Err(
-         format!("EOF: invalid argument count for: {}, got: {}, need: {} and atleast: {}",
+        error_msg!(
+         format!("invalid argument count for: {}, got: {}, need: {} and atleast: {}",
                 str, args.len(), min, max)
         )
     } else {

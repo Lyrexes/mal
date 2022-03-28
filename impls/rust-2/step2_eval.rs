@@ -4,7 +4,7 @@ use printer::pr_str;
 use reader::read_str;
 use rustyline::error::ReadlineError;
 use types::{MalType, MalType::Number, MalType::Symbol, MalType::Vector, 
-            MalType::List, MalType::Builtin, MalType::HashMap, MalRet};
+            MalType::List, MalType::Builtin, MalType::HashMap, MalRet, MalError};
 mod reader;
 mod types;
 mod printer;
@@ -19,21 +19,21 @@ fn main() {
     repl_env.insert("+".to_string(),Builtin(|args| { 
         match (&args[0],  &args[1]) {
             (Number(lhs), Number(rhs)) => Ok(Number(lhs + rhs)),
-            _ => Err("EOF: invalid add".to_string())
+            _ => error_msg!("invalid add".to_string())
         }
     }));
     
     repl_env.insert("-".to_string(), Builtin(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs - rhs)),
-            _ => Err("EOF invalid subtraction".to_string())
+            _ => error_msg!("EOF invalid subtraction".to_string())
         }
     }));
 
     repl_env.insert("*".to_string(), Builtin(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs * rhs)),
-            _ => Err("Eof invalid mutltiplication".to_string())
+            _ => error_msg!("Eof invalid mutltiplication".to_string())
         }
     }));
 
@@ -41,8 +41,8 @@ fn main() {
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) =>
                  Ok(Number(lhs.checked_div(*rhs)
-                 .ok_or("invalid division!".to_string())?)),
-            _ => Err("Eof invalid division".to_string())
+                 .ok_or(MalError::Message("invalid division!".to_string()))?)),
+            _ => error_msg!("Eof invalid division".to_string())
         }
     }));
 
@@ -52,7 +52,10 @@ fn main() {
             Ok(line) => 
             println!("{}", match rep(line, &repl_env) {
                 Ok(str) => str,
-                Err(err) => err
+                Err(err) => match err {
+                    MalError::MalVal(v) => pr_str(&v, true),
+                    MalError::Message(msg) => format!("EOF: {}", msg),
+                }
             }),
             _ => return,
         }
@@ -65,8 +68,8 @@ fn input(prompt: &str) -> Result<String, ReadlineError> {
     input
 }
 
-fn rep(string: String, env: &EnvTable) -> Result<String, String> {
-    print(eval(&read(string)?, env)?)
+fn rep(string: String, env: &EnvTable) -> Result<String, MalError> {
+    Ok(print(eval(&read(string)?, env)?))
 }
 
 fn read(string: String) -> MalRet  {
@@ -79,7 +82,7 @@ fn eval(ast: &MalType, env: &EnvTable) -> MalRet {
             if list.is_empty() { return Ok(ast.clone()) }
             match eval_ast(ast, env)? {
                 List(eval_list) => return Ok(eval_list[0].apply(&eval_list[1..])?),
-                _ => return Err("EOF: expected list!".to_owned()),
+                _ => return error_msg!("expected list!"),
             }
         }
         _ => eval_ast(ast, env).clone()
@@ -90,7 +93,7 @@ fn eval_ast(ast: &MalType, env: &EnvTable) -> MalRet {
     match ast {
         Symbol(sym) => {
             Ok(env.get(&(**sym))
-             .ok_or("EOF: symbol not found!")?
+             .ok_or(MalError::Message("symbol not found!".to_string()))?
              .clone())
         }
         List(list) | Vector(list) => {
@@ -118,6 +121,6 @@ fn eval_ast(ast: &MalType, env: &EnvTable) -> MalRet {
     }
 }
 
-fn print(ast: MalType) -> Result<String, String> {
+fn print(ast: MalType) -> String {
     pr_str(&ast, true)
 }

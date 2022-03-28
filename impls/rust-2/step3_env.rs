@@ -4,7 +4,7 @@ use printer::pr_str;
 use reader::read_str;
 use rustyline::error::ReadlineError;
 use types::{MalType, MalType::Number, MalType::Symbol, MalType::Vector, 
-            MalType::List, MalType::Builtin, MalType::HashMap, MalRet};
+            MalType::List, MalType::Builtin, MalType::HashMap, MalRet, MalError};
 mod reader;
 mod types;
 mod printer;
@@ -17,21 +17,21 @@ fn main() {
     repl_env.set("+".to_string(),Builtin(|args| { 
         match (&args[0],  &args[1]) {
             (Number(lhs), Number(rhs)) => Ok(Number(lhs + rhs)),
-            _ => Err("EOF: invalid add".to_string())
+            _ => error_msg!("invalid add".to_string())
         }
     }));
     
     repl_env.set("-".to_string(), Builtin(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs - rhs)),
-            _ => Err("EOF invalid subtraction".to_string())
+            _ => error_msg!("EOF invalid subtraction".to_string())
         }
     }));
 
     repl_env.set("*".to_string(), Builtin(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs * rhs)),
-            _ => Err("Eof invalid mutltiplication".to_string())
+            _ => error_msg!("Eof invalid mutltiplication".to_string())
         }
     }));
 
@@ -39,8 +39,8 @@ fn main() {
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) =>
                  Ok(Number(lhs.checked_div(*rhs)
-                 .ok_or("invalid division!".to_string())?)),
-            _ => Err("Eof invalid division".to_string())
+                 .ok_or(MalError::Message("invalid division!".to_string()))?)),
+            _ => error_msg!("Eof invalid division".to_string())
         }
     }));
 
@@ -50,7 +50,10 @@ fn main() {
             Ok(line) => 
             println!("{}", match rep(line, &mut repl_env) {
                 Ok(str) => str,
-                Err(err) => err
+                Err(err) => match err {
+                    MalError::MalVal(v) => pr_str(&v, true),
+                    MalError::Message(msg) => format!("EOF: {}", msg),
+                }
             }),
             _ => return,
         }
@@ -63,8 +66,8 @@ fn input(prompt: &str) -> Result<String, ReadlineError> {
     input
 }
 
-fn rep(string: String, env: &mut Env) -> Result<String, String> {
-    print(eval(&read(string)?,env)?)
+fn rep(string: String, env: &mut Env) -> Result<String, MalError> {
+    Ok(print(eval(&read(string)?,env)?))
 }
 
 fn read(string: String) -> MalRet  {
@@ -86,7 +89,7 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
                 _ => if let List(eval_list) = eval_ast(ast, env)? {
                     return Ok(eval_list[0].apply(&eval_list[1..])?)
                 } else {
-                    return Err("EOF: expected list!".to_owned())
+                    return error_msg!("expected list!")
                 }
             }
         }
@@ -98,7 +101,7 @@ fn eval_ast(ast: &MalType, env: &mut Env) -> MalRet {
     match ast {
         Symbol(sym) => {
             Ok(env.get(&(**sym))
-             .ok_or(format!("EOF: {} not found!", sym.to_string()))?
+             .ok_or(MalError::Message(format!("{} not found!", sym.to_string())))?
              .clone())
         }
         List(list) | Vector(list) => {
@@ -126,7 +129,7 @@ fn eval_ast(ast: &MalType, env: &mut Env) -> MalRet {
     }
 }
 
-fn print(ast: MalType) -> Result<String, String> {
+fn print(ast: MalType) -> String {
     pr_str(&ast, true)
 }
 
@@ -137,7 +140,7 @@ fn apply_def(args: &[MalType], env: &mut Env) -> MalRet {
         env.set((**key).clone(), eval_val.clone());
         return Ok(eval_val);
     }
-    Err(format!("EOF: binding var must be a symbol! got: {}", pr_str(&args[1], true)?))
+    error_msg!(format!("binding var must be a symbol! got: {}", pr_str(&args[1], true)))
 }
 
 fn apply_let(args: &[MalType], env: &Env) -> MalRet {
@@ -146,7 +149,7 @@ fn apply_let(args: &[MalType], env: &Env) -> MalRet {
     match &args[0] {
         List(binds) | Vector(binds) => {
             if binds.len() % 2 != 0 {
-                return Err("EOF: let bindings must be balanced!".to_string())
+                return error_msg!("let bindings must be balanced!".to_string())
             }
             let mut bind_iter = binds.iter();
             while let Some(bind) = bind_iter.next() {
@@ -154,12 +157,12 @@ fn apply_let(args: &[MalType], env: &Env) -> MalRet {
                     let eval_val = eval(bind_iter.next().unwrap(), &mut let_env)?;
                     let_env.set(key.to_string(), eval_val);
                 } else {
-                    return Err("EOF: bindings must be symbols!".to_string())
+                    return error_msg!("bindings must be symbols!")
                 }
             }
             eval(&args[1], &mut let_env)
         }
-        _ => Err("EOF: let needs bind list!".to_string())
+        _ => error_msg!("let needs bind list!")
     }
 
 }
@@ -167,7 +170,7 @@ fn apply_let(args: &[MalType], env: &Env) -> MalRet {
 fn validate_args(args: &[MalType], count: usize, str: &str) -> Option<String> {
     if args.len() != count {
         Some(
-         format!("EOF: invalid argument count for: {}, got: {}, need: {}",
+         format!("invalid argument count for: {}, got: {}, need: {}",
                 str, args.len(), count)
         )
     } else {

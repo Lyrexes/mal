@@ -1,9 +1,9 @@
 use fnv::FnvHashMap;
 use crate::types::*;
 
-pub fn pr_str(ast: &MalType, readably: bool) -> Result<String, String> {
+pub fn pr_str(ast: &MalType, readably: bool) -> String{
     match ast {
-        MalType::Atom(a)   => Ok(format!("(atom {})", pr_str(&(**a).borrow().clone(), readably)?)),
+        MalType::Atom(a)   => format!("(atom {})", pr_str(&(**a).borrow().clone(), readably)),
         MalType::HashMap(m) => print_map(m, readably),
         MalType::Vector(v) => {
             print_seq( &(**v), '[', ']', readably)
@@ -11,14 +11,14 @@ pub fn pr_str(ast: &MalType, readably: bool) -> Result<String, String> {
         MalType::List(l) => {
             print_seq(&(**l), '(', ')', readably)
         }
-        MalType::Symbol(s) => Ok((**s).to_owned()),
-        MalType::String(s) => Ok(print_string(&(**s), readably)),
-        MalType::Keyword(k) => Ok(print_keyword(&(**k))),
-        MalType::Number(n) => Ok(n.to_string()),
-        MalType::Bool(b) => Ok(print_bool(b)),
+        MalType::Symbol(s) => (**s).to_owned(),
+        MalType::String(s) => print_string(&(**s), readably),
+        MalType::Keyword(k) => print_keyword(&(**k)),
+        MalType::Number(n) => n.to_string(),
+        MalType::Bool(b) => print_bool(b),
         MalType::Builtin(_) | MalType::Lambda(_)
-        | MalType::Macro(_) => Ok("#<function>".to_owned()),
-        MalType::Nil => Ok("nil".to_owned()),
+        | MalType::Macro(_) => "#<function>".to_owned(),
+        MalType::Nil => "nil".to_owned(),
     }
 }
 
@@ -37,18 +37,18 @@ fn print_string(str: &String, readably: bool) -> String {
     format!("\"{}\"", mal_str)
 }
 
-fn print_seq(seq: &Vec<MalType>, start_delim: char, end_delim: char, readably: bool) -> Result<String,String> {
+fn print_seq(seq: &Vec<MalType>, start_delim: char, end_delim: char, readably: bool) -> String {
 
-    if seq.is_empty() { return Ok(format!("{}{}", start_delim, end_delim)); }
+    if seq.is_empty() { return format!("{}{}", start_delim, end_delim); }
 
     let mut seq_str = String::with_capacity(2*seq.len());
 
     for el in seq {
-        seq_str.push_str(&format!("{} ",pr_str(el, readably)?));
+        seq_str.push_str(&format!("{} ", pr_str(el, readably)));
     }
     seq_str.pop();
 
-    Ok(format!("{}{}{}", start_delim, seq_str, end_delim))
+    format!("{}{}{}", start_delim, seq_str, end_delim)
 }
 
 fn print_keyword(k: &String) -> String {
@@ -66,9 +66,9 @@ fn print_bool(b: &bool) -> String {
     }
 }
 
-fn print_map(m: &FnvHashMap<String, MalType>, readably: bool) -> Result<String, String> {
+fn print_map(m: &FnvHashMap<String, MalType>, readably: bool) -> String {
 
-    if m.is_empty() { return Ok("{}".to_owned()) }
+    if m.is_empty() { return "{}".to_owned() }
 
     let mut map_str = String::with_capacity(4*m.len());
 
@@ -80,11 +80,11 @@ fn print_map(m: &FnvHashMap<String, MalType>, readably: bool) -> Result<String, 
                 print_string(key, readably)
             }
         };
-        map_str.push_str(&format!("{} {} ", new_key, pr_str(value, readably)?));
+        map_str.push_str(&format!("{} {} ", new_key, pr_str(value, readably)));
     }
     map_str.pop();
 
-    Ok(format!("{}{}{}", '{', map_str, '}'))
+    format!("{}{}{}", '{', map_str, '}')
 }
 
 
