@@ -70,6 +70,28 @@ fn throw(args: Args) -> MalRet {
     Err(MalError::MalVal(args[0].clone()))
 }
 
+fn apply(args:Args) -> MalRet {
+    validate_args_at_least(args, 2, "apply")?;
+    let last = args.len()-1;
+    match (args[0], args[args.len()-1]) {
+        (Lambda(f), List(seq) | Vector(seq)) => {
+            if seq.len() == 2 {
+                Ok(f(&seq[..]))               
+            } else {
+                Ok(f([args[1..last], seq[..]].concat()))
+            }
+        }
+        (Builtin(f), List(seq) | Vector(seq)) => {
+            if seq.len() == 2 {
+                Ok(f(&seq[..]))               
+            } else {
+                Ok(f([args[1..last], seq[..]].concat()))
+            }
+        }
+        _ => error_msg!("apply expected a sequence type as last argument!")
+    }
+}
+
 fn nth(args: Args) -> MalRet {
     validate_args(args, 2, "nth")?;
     match (&args[0], &args[1]) {
