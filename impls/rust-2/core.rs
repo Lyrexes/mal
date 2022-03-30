@@ -61,8 +61,35 @@ pub fn get_ns() -> FnvHashMap<String, MalType> {
         "nth"         => Builtin(nth),  
         "first"       => Builtin(first),
         "rest"        => Builtin(rest),
-        "throw"       => Builtin(throw)
+        "throw"       => Builtin(throw),
+        "apply"       => Builtin(apply),
+        "map"         => Builtin(map)
+
     ]
+}
+
+fn map(args: Args) -> MalRet {
+    validate_args(args, 2, "map")?;
+    match (&args[0], &args[1]) {
+        (Lambda(f), List(seq) | Vector(seq)) => {
+            let mut lst = Vec::with_capacity(seq.len());
+            let (mut ast, mut env);
+            for el in seq.iter() {
+                (ast, env) = f(&[el.clone()])?;
+                lst.push(eval(&ast, &mut env)?);
+            }
+            Ok(list!(lst))
+        }
+        (Builtin(f), List(seq) | Vector(seq)) => {
+            let mut lst = Vec::with_capacity(seq.len());
+            for el in seq.iter() {
+                lst.push(f(&[el.clone()])?);
+            }
+            Ok(list!(lst))
+        }
+        _ => error_msg!("map expected a sequence and a function!")
+    }
+    
 }
 
 fn throw(args: Args) -> MalRet {
@@ -73,19 +100,21 @@ fn throw(args: Args) -> MalRet {
 fn apply(args:Args) -> MalRet {
     validate_args_at_least(args, 2, "apply")?;
     let last = args.len()-1;
-    match (args[0], args[args.len()-1]) {
+    match (&args[0], &args[args.len()-1]) {
         (Lambda(f), List(seq) | Vector(seq)) => {
-            if seq.len() == 2 {
-                Ok(f(&seq[..]))               
+            let (ast, mut env);
+            if args.len() == 2 {
+                (ast, env) = f(&seq[..])?;
             } else {
-                Ok(f([args[1..last], seq[..]].concat()))
+                (ast, env) = f(&[&args[1..last], &seq[..]].concat())?;
             }
+            eval(&ast, &mut env)
         }
         (Builtin(f), List(seq) | Vector(seq)) => {
-            if seq.len() == 2 {
-                Ok(f(&seq[..]))               
+            if args.len() == 2 {
+                f(&seq[..])
             } else {
-                Ok(f([args[1..last], seq[..]].concat()))
+                f(&[&args[1..last], &seq[..]].concat())
             }
         }
         _ => error_msg!("apply expected a sequence type as last argument!")
