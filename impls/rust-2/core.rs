@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::fs;
 use crate::types::{MalType, MalRet, Args,MalError};
-use crate::types::MalType::{Builtin, Lambda, Nil, Number, Atom, Vector, List, Bool};
-use crate::{string, list, atom};
+use crate::types::MalType::{Builtin, Symbol, Lambda, Nil, Number, Atom, Vector, List, Bool};
+use crate::{string, list, atom, symbol, vector};
 use crate::{pr_str, read_str, error_msg};
 use crate::eval;
 
@@ -63,9 +63,156 @@ pub fn get_ns() -> FnvHashMap<String, MalType> {
         "rest"        => Builtin(rest),
         "throw"       => Builtin(throw),
         "apply"       => Builtin(apply),
-        "map"         => Builtin(map)
-
+        "map"         => Builtin(map),
+        "nil?"        => Builtin(is_nil),
+        "true?"       => Builtin(is_true),
+        "false?"      => Builtin(is_false),
+        "symbol?"     => Builtin(is_symbol)
     ]
+}
+
+fn symbol(args:Args) -> MalRet {
+    validate_args(args, 1, "symbol")?;
+    if let MalType::String(ref str) = args[0] {
+        Ok(symbol!((**str).clone()))
+    } else {
+        error_msg!("symbol expects a string!")
+    }
+}
+
+fn keyword(args:Args) -> MalRet {
+    validate_args(args, 1, "keyword")?;
+    if let MalType::String(ref str) = args[0] {
+        Ok(symbol!(format!("{}{}", '\u{29E}', (**str).clone())))
+    } else {
+        error_msg!("keyword expects a string!")
+    }
+}
+
+fn is_keyword(args:Args) -> MalRet {
+    validate_args(args, 1, "keyword?")?;
+    if let MalType::Keyword(_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+
+}
+
+fn is_sequential(args: Args) -> MalRet {
+    validate_args(args, 1, "sequential?")?;
+    if let Vector(_) | List(_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn vector(args: Args) -> MalRet {
+    let mut v = Vec::with_capacity(args.len());
+    for arg in args.iter() {
+        v.push(arg.deep_copy());
+    }
+    Ok(vector!(v))
+}
+
+fn is_vector(args: Args) -> MalRet {
+    validate_args(args, 1, "vector?")?;
+    if let Vector(_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn hash_map(args: Args) -> MalRet {
+    if args.len() % 2 != 0 {
+        return error_msg!("hash map requires an even number of arguments")
+    } 
+    let mut map = fnv::FnvHashMap
+        ::with_capacity_and_hasher(
+            args.len()/2,
+            fnv::FnvBuildHasher::default()
+    );
+    let mut map_iter = args.iter();
+    while let Some(val) = map_iter.next() {
+        if let MalType::String(key) | MalType::Keyword(key) = val {
+            map.insert((**key).clone(), map_iter.next().unwrap().deep_copy());
+        } else {
+            return error_msg!("hashmap expects key to be string or keyword!");
+        }
+    }
+    Ok(MalType::HashMap(Rc::new(map)))
+}
+
+fn is_map(args:Args) -> MalRet {
+    validate_args(args, 1, "map?")?;
+    if let MalType::HashMap(_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn assoc(args: Args) -> MalRet {
+    validate_args_at_least(args, 1, "assoc")?;
+    if let MalType::HashMap(ref map) = args[0] {
+        let mut new_map = (**map).clone();
+        if (args.len()-1) % 2 == 0 {
+            new_map.reserve((args.len() - 1) / 2);
+            let mut map_iter = args.iter();
+            map_iter.next();
+            while let Some(val) = map_iter.next() {
+                if let MalType::String(key) | MalType::Keyword(key) = val {
+                    new_map.insert((**key).clone(), map_iter.next().unwrap().deep_copy());
+                } else {
+                    return error_msg!("hashmap expects key to be string or keyword!");
+                }
+            }
+            Ok(MalType::HashMap(Rc::new(new_map)))
+        } else {
+            error_msg!("assoc expected an even amoun of keys and valuse!")
+        }
+    } else {
+        error_msg!("assoc expected a HashMap as first argument!")
+    }
+}
+
+fn is_nil(args:Args) -> MalRet {
+    validate_args(args, 1, "nil?")?;
+    if let Nil = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+
+fn is_true(args:Args) -> MalRet {
+    validate_args(args, 1, "true?")?;
+    if let Bool(b) = args[0] {
+        Ok(Bool(b))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn is_false(args:Args) -> MalRet {
+    validate_args(args, 1, "false?")?;
+    if let Bool(b) = args[0] {
+        Ok(Bool(!b))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn is_symbol(args:Args) -> MalRet {
+    validate_args(args, 1, "symbol?")?;
+    if let Symbol(_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
 }
 
 fn map(args: Args) -> MalRet {
