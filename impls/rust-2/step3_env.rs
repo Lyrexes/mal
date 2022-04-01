@@ -14,28 +14,28 @@ mod env;
 fn main() {
     let mut repl_env = Env::new_env(None);
 
-    repl_env.set("+".to_string(),Builtin(|args| { 
+    repl_env.set("+".to_string(),builtin!(|args| { 
         match (&args[0],  &args[1]) {
             (Number(lhs), Number(rhs)) => Ok(Number(lhs + rhs)),
             _ => error_msg!("invalid add".to_string())
         }
     }));
     
-    repl_env.set("-".to_string(), Builtin(|args| { 
+    repl_env.set("-".to_string(), builtin!(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs - rhs)),
             _ => error_msg!("EOF invalid subtraction".to_string())
         }
     }));
 
-    repl_env.set("*".to_string(), Builtin(|args| { 
+    repl_env.set("*".to_string(), builtin!(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs * rhs)),
             _ => error_msg!("Eof invalid mutltiplication".to_string())
         }
     }));
 
-    repl_env.set("/".to_string(), Builtin(|args| { 
+    repl_env.set("/".to_string(), builtin!(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) =>
                  Ok(Number(lhs.checked_div(*rhs)
@@ -76,7 +76,7 @@ fn read(string: String) -> MalRet  {
 
 fn eval(ast: &MalType, env: &mut Env) -> MalRet {
     match ast {
-        List(list) => {
+        List(list,_) => {
             if list.is_empty() { return Ok(ast.clone()) }
             let first = &list[0];
             match first {
@@ -86,7 +86,7 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
                 Symbol(s) if **s == "let*" => {
                     apply_let(&list[1..], env)
                 }
-                _ => if let List(eval_list) = eval_ast(ast, env)? {
+                _ => if let List(eval_list,_) = eval_ast(ast, env)? {
                     return Ok(eval_list[0].apply(&eval_list[1..])?)
                 } else {
                     return error_msg!("expected list!")
@@ -104,18 +104,18 @@ fn eval_ast(ast: &MalType, env: &mut Env) -> MalRet {
              .ok_or(MalError::Message(format!("{} not found!", sym.to_string())))?
              .clone())
         }
-        List(list) | Vector(list) => {
+        List(list,_) | Vector(list,_) => {
             let mut new_seq = Vec::<MalType>::with_capacity(list.len());
             for l in (*list).iter() {
                 new_seq.push(eval(l, env)?);
             }
-            if let List(_) = ast {
+            if let List(_,_) = ast {
                 Ok(list!(new_seq))
             } else {
                 Ok(vector!(new_seq))
             }
         }
-        HashMap(map) => {
+        HashMap(map,_) => {
             let mut new_map = std::collections::HashMap::with_capacity_and_hasher(
             map.len(),
         fnv::FnvBuildHasher::default()
@@ -147,7 +147,7 @@ fn apply_let(args: &[MalType], env: &Env) -> MalRet {
     validate_args(args, 2, "let*");
     let mut let_env = Env::new_env(Some(env.clone()));
     match &args[0] {
-        List(binds) | Vector(binds) => {
+        List(binds,_) | Vector(binds,_) => {
             if binds.len() % 2 != 0 {
                 return error_msg!("let bindings must be balanced!".to_string())
             }

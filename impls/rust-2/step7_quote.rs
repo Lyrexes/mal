@@ -46,7 +46,7 @@ fn init_repl_env() -> Env {
     repl_env.set("eval".to_string(), Lambda(Rc::new(move |args| {
         validate_args(args, 1, "eval")?;
         Ok((args[0].clone(), env_.clone()))
-    })));
+    }), Rc::new(Nil)));
     inject_code_str(&mut repl_env, "(def! not (fn* (a) (if a false true)))");
     inject_code_str(&mut repl_env, r#"(def! load-file (fn* (f) (eval (read-string (str "(do " (slurp f) "\nnil)")))))"#);
     repl_env
@@ -93,7 +93,7 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
     let mut curr_ast = ast.clone();
     let mut curr_env = env.clone();
     loop {
-        if let List(ref list) = curr_ast {
+        if let List(ref list,_) = curr_ast {
             if list.is_empty() { return Ok(curr_ast.clone()) }
             let first = &list[0];
             match first {
@@ -123,8 +123,8 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
                 Symbol(s) if **s == "quasiquoteexpand" => return Ok(quasiquote(&list[1..])?),
                 Symbol(s) if **s == "fn*"  => return create_lambda(&list[1..], &curr_env),
                 _ => {
-                    if let List(eval_list) = eval_ast(&curr_ast, &mut curr_env)? {
-                        if let Lambda(ref l) = eval_list[0] {
+                    if let List(eval_list,_) = eval_ast(&curr_ast, &mut curr_env)? {
+                        if let Lambda(ref l,_) = eval_list[0] {
                             (curr_ast, curr_env) = l(&eval_list[1..])?;
                             continue
                         }
@@ -147,18 +147,18 @@ fn eval_ast(ast: &MalType, env: &mut Env) -> MalRet {
              .clone()
             )
         }
-        List(list) | Vector(list) => {
+        List(list,_) | Vector(list,_) => {
             let mut new_seq = Vec::<MalType>::with_capacity(list.len());
             for l in (*list).iter() {
                 new_seq.push(eval(l, env)?);
             }
-            if let List(_) = ast {
+            if let List(_,_) = ast {
                 Ok(list!(new_seq))
             } else {
                 Ok(vector!(new_seq))
             }
         }
-        HashMap(map) => {
+        HashMap(map,_) => {
             let mut new_map = stdMap::with_capacity_and_hasher(
                 map.len(),
                 fnv::FnvBuildHasher::default()
@@ -182,7 +182,7 @@ fn quasiquote(args: &[MalType]) -> MalRet {
     if ast.is_form_call("unquote", 1) { 
         return Ok(ast.nth(1))
     }
-    if let List(lst) | Vector(lst)  = ast {
+    if let List(lst,_) | Vector(lst,_)  = ast {
         let mut result = Vec::new();
         for elt in lst.iter().rev() {
             if elt.is_form_call("splice-unquote", 1) {
@@ -200,7 +200,7 @@ fn quasiquote(args: &[MalType]) -> MalRet {
                 ];
             }
         }
-        if let Vector(_) = ast {
+        if let Vector(_,_) = ast {
             Ok(list!(vec![
                 symbol!("vec"),
                 list!(result)
@@ -210,7 +210,7 @@ fn quasiquote(args: &[MalType]) -> MalRet {
         }
     } else {
         match ast {
-            HashMap(_) | Symbol(_) => {
+            HashMap(_,_) | Symbol(_) => {
                 return Ok(list!(vec![
                     symbol!("quote".to_string()),
                     ast.clone()
@@ -235,7 +235,7 @@ fn apply_let(args: &[MalType], env: &Env) -> Result<(MalType, Env), MalError> {
     validate_args(args, 2, "let*")?;
     let mut let_env = Env::new_env(Some(env.clone()));
     match args[0] {
-        List(ref binds) | Vector(ref binds) => {
+        List(ref binds,_) | Vector(ref binds,_) => {
             if binds.len() % 2 != 0 {
                 return error_msg!("let bindings must be balanced!".to_string())
             }
@@ -297,7 +297,7 @@ fn apply_if(args: &[MalType], env: &mut Env) -> MalRet {
 **/
 fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
     match args[0] {
-        List(ref params) | Vector(ref params) => {
+        List(ref params,_) | Vector(ref params,_) => {
 
             let all_sym = params.iter()
              .all(|x| if let Symbol(_) = x {true} else {false});
@@ -334,7 +334,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
                     lambda_env.insert(&lambda_params[..vari_i], &arguments[..vari_i]);
                     lambda_env.set((*lambda_params[vari_i]).clone(), list![arguments[vari_i..].to_vec()]);
                     Ok((body.clone(),  lambda_env.clone()))
-                })))
+                }), Rc::new(Nil)))
             } else {
                 Ok(Lambda(Rc::new(move |arguments: &[MalType]| -> Result<(MalType,Env), MalError> {
                     if lambda_params.len() != arguments.len() {
@@ -348,7 +348,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
                         &*lambda_params,
                         arguments 
                     )))
-                })))
+                }), Rc::new(Nil)))
             }
         }
         _ => error_msg!("invalid lambda call, parameters must be a list or vector!")

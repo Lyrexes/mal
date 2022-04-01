@@ -4,11 +4,11 @@ use crate::types::*;
 pub fn pr_str(ast: &MalType, readably: bool) -> String{
     match ast {
         MalType::Atom(a)   => format!("(atom {})", pr_str(&(**a).borrow().clone(), readably)),
-        MalType::HashMap(m) => print_map(m, readably),
-        MalType::Vector(v) => {
+        MalType::HashMap(m,_) => print_map(m, readably),
+        MalType::Vector(v,_) => {
             print_seq( &(**v), '[', ']', readably)
         }
-        MalType::List(l) => {
+        MalType::List(l,_) => {
             print_seq(&(**l), '(', ')', readably)
         }
         MalType::Symbol(s) => (**s).to_owned(),
@@ -16,8 +16,8 @@ pub fn pr_str(ast: &MalType, readably: bool) -> String{
         MalType::Keyword(k) => print_keyword(&(**k)),
         MalType::Number(n) => n.to_string(),
         MalType::Bool(b) => print_bool(b),
-        MalType::Builtin(_) | MalType::Lambda(_)
-        | MalType::Macro(_) => "#<function>".to_owned(),
+        MalType::Builtin(_,_) | MalType::Lambda(_,_)
+        | MalType::Macro(_,_) => "#<function>".to_owned(),
         MalType::Nil => "nil".to_owned(),
     }
 }

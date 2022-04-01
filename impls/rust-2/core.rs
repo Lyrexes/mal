@@ -3,9 +3,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::fs;
 use crate::types::{MalType, MalRet, Args,MalError};
-use crate::types::MalType::{Builtin, Symbol, Lambda, Nil, Number, Atom, Vector, List, Bool};
-use crate::{string, list, atom, symbol, vector};
-use crate::{pr_str, read_str, error_msg};
+use crate::types::MalType::{Builtin, HashMap, Macro, Symbol, Keyword, Lambda, Nil, Number, Atom, Vector, List, Bool};
+use crate::types::MalType::String as MalString;
+use crate::{string, list, builtin, map, atom, symbol, vector, keyword};
+use crate::{pr_str, read_str, error_msg, input};
+use std::time::SystemTime;
 use crate::eval;
 
 
@@ -14,7 +16,7 @@ macro_rules! count {
     ( $x:tt $($xs:tt)* ) => {1usize + count!($($xs)*)};
 }
 
-macro_rules! map {
+macro_rules! ns_map {
     ($($key:expr => $val:expr),*) => {{
         let size = count!($($key)*);
         let mut map = FnvHashMap::<String, MalType>
@@ -30,50 +32,227 @@ macro_rules! map {
 }
 
 pub fn get_ns() -> FnvHashMap<String, MalType> {
-    map![
-        "+"           => Builtin(add),
-        "-"           => Builtin(sub),
-        "/"           => Builtin(div),
-        "*"           => Builtin(mul),
-        "prn"         => Builtin(prn),
-        "pr-str"      => Builtin(prn_str),
-        "str"         => Builtin(to_str),
-        "println"     => Builtin(println),
-        "list"        => Builtin(list),
-        "list?"       => Builtin(is_list),
-        "empty?"      => Builtin(is_empty),
-        "count"       => Builtin(count),
-        "="           => Builtin(eq),
-        ">="          => Builtin(gt_eq),
-        ">"           => Builtin(gt),
-        "<="          => Builtin(lt_eq),
-        "<"           => Builtin(lt),
-        "read-string" => Builtin(read_string),
-        "slurp"       => Builtin(slurp),
-        "atom"        => Builtin(atom),
-        "atom?"       => Builtin(is_atom),
-        "deref"       => Builtin(deref),
-        "reset!"      => Builtin(reset),
-        "swap!"       => Builtin(swap),
-        "concat"      => Builtin(concat),
-        "cons"        => Builtin(cons),
-        "vec"         => Builtin(vec),
-        "nth"         => Builtin(nth),  
-        "first"       => Builtin(first),
-        "rest"        => Builtin(rest),
-        "throw"       => Builtin(throw),
-        "apply"       => Builtin(apply),
-        "map"         => Builtin(map),
-        "nil?"        => Builtin(is_nil),
-        "true?"       => Builtin(is_true),
-        "false?"      => Builtin(is_false),
-        "symbol?"     => Builtin(is_symbol)
+    ns_map![
+        "+"           => builtin!(add),
+        "-"           => builtin!(sub),
+        "/"           => builtin!(div),
+        "*"           => builtin!(mul),
+        "prn"         => builtin!(prn),
+        "pr-str"      => builtin!(prn_str),
+        "str"         => builtin!(to_str),
+        "println"     => builtin!(println),
+        "list"        => builtin!(list),
+        "list?"       => builtin!(is_list),
+        "empty?"      => builtin!(is_empty),
+        "count"       => builtin!(count),
+        "="           => builtin!(eq),
+        ">="          => builtin!(gt_eq),
+        ">"           => builtin!(gt),
+        "<="          => builtin!(lt_eq),
+        "<"           => builtin!(lt),
+        "read-string" => builtin!(read_string),
+        "slurp"       => builtin!(slurp),
+        "atom"        => builtin!(atom),
+        "atom?"       => builtin!(is_atom),
+        "deref"       => builtin!(deref),
+        "reset!"      => builtin!(reset),
+        "swap!"       => builtin!(swap),
+        "concat"      => builtin!(concat),
+        "cons"        => builtin!(cons),
+        "vec"         => builtin!(vec),
+        "nth"         => builtin!(nth),  
+        "first"       => builtin!(first),
+        "rest"        => builtin!(rest),
+        "throw"       => builtin!(throw),
+        "apply"       => builtin!(apply),
+        "map"         => builtin!(map),
+        "nil?"        => builtin!(is_nil),
+        "true?"       => builtin!(is_true),
+        "false?"      => builtin!(is_false),
+        "symbol?"     => builtin!(is_symbol),
+        "vals"        => builtin!(vals),
+        "keys"        => builtin!(keys),
+        "symbol"      => builtin!(symbol),
+        "keyword"     => builtin!(keyword),
+        "keyword?"    => builtin!(is_keyword),
+        "vector"      => builtin!(vector),
+        "vector?"     => builtin!(is_vector),
+        "sequential?" => builtin!(is_sequential),
+        "hash-map"    => builtin!(hash_map),
+        "map?"        => builtin!(is_map),
+        "assoc"       => builtin!(assoc),
+        "dissoc"      => builtin!(dissoc),
+        "get"         => builtin!(get),
+        "contains?"   => builtin!(contains),
+        "readline"    => builtin!(read_line),
+        "time-ms"     => builtin!(time_ms),
+        "meta"        => builtin!(meta),
+        "with-meta"   => builtin!(with_meta),
+        "fn?"         => builtin!(is_fn),
+        "string?"     => builtin!(is_string),
+        "number?"     => builtin!(is_number),
+        "seq"         => builtin!(seq),
+        "conj"        => builtin!(conj),
+        "macro?"       => builtin!(is_macro)
     ]
+}
+
+fn conj(args: Args) -> MalRet {
+    validate_args_at_least(args, 2, "conj")?;
+    match args[0] {
+        List(ref seq,_) => {
+            let mut new_list = vec![];
+            new_list.extend((args[1..]).iter().map(|x| x.clone()).rev());
+            new_list.extend_from_slice(&seq[..]);
+            Ok(list!(new_list))
+        },
+        Vector(ref seq,_) => {
+            Ok(vector!([&seq[..],&args[1..]].concat()))
+        },
+        _ => error_msg!("conj expects a list or vector!")
+    }
+}
+
+fn is_number(args: Args) -> MalRet {
+    validate_args(args, 1, "number?")?;
+    if let Number(_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn is_string(args: Args) -> MalRet {
+    validate_args(args, 1, "string?")?;
+    if let MalString(_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn is_fn(args: Args) -> MalRet {
+    validate_args(args, 1, "fn?")?;
+    if let Lambda(_,_) | Builtin(_,_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn is_macro(args: Args) -> MalRet {
+    validate_args(args, 1, "macro?")?;
+    if let Macro(_,_) = args[0] {
+        Ok(Bool(true))
+    } else {
+        Ok(Bool(false))
+    }
+}
+
+fn with_meta(args: Args) -> MalRet {
+    validate_args(args, 2, "with_meta?")?;
+    match &args[0] {
+        HashMap(m,_) => Ok(HashMap(m.clone(), Rc::new(args[1].clone()))),
+        Vector(v,_) =>  Ok(Vector(v.clone(), Rc::new(args[1].clone()))),
+        List(l,_) => Ok(List(l.clone(), Rc::new(args[1].clone()))),
+        Builtin(b,_) => Ok(Builtin(b.clone(), Rc::new(args[1].clone()))),
+        Lambda(l,_) => Ok(Lambda(l.clone(), Rc::new(args[1].clone()))),
+        Macro(m,_) => Ok(Macro(m.clone(), Rc::new(args[1].clone()))),
+        _ => error_msg!("with-meta expects a meta-type!")
+    }
+}
+fn meta(args: Args) -> MalRet {
+    validate_args(args, 1, "meta")?;
+    match &args[0] {
+        HashMap(_,meta) | Vector(_,meta) |
+        List(_,meta)    | Builtin(_,meta) |
+        Lambda(_,meta)  | Macro(_,meta) => Ok((**meta).clone()),
+        _ => error_msg!("meta expects a meta type!")
+    }
+}
+
+fn time_ms(args: Args) -> MalRet {
+    validate_args(args, 0, "time-ms")?;
+    match SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(n) => Ok(Number(n.as_millis() as i64)),
+            Err(s) => error_msg!(s.to_string()),
+        }
+}
+
+fn seq(args: Args) -> MalRet {
+    validate_args(args, 1, "seq")?;
+    match args[0] {
+        List(ref seq,_) | Vector(ref seq,_) => {
+            if seq.is_empty() { 
+                Ok(Nil)
+            } else {
+                Ok(List(seq.clone(), Rc::new(Nil)))
+            }
+        },
+        MalString(ref str) => {
+            if str.is_empty() { 
+                Ok(Nil)
+            } else {
+                Ok(list!((**str).chars()
+                 .map(|c| string!(c))
+                 .collect::<Vec<_>>()))
+            }
+        },
+        Nil => Ok(Nil),
+        _ => error_msg!("seq expects a string list vec and nil!")
+    }
+}
+
+fn read_line(args:Args) -> MalRet {
+    validate_args(args, 1, "readline")?;
+    if let MalString(ref str) = args[0] {
+        match input(str.as_str()) {
+            Ok(str) => Ok(string!(str)),
+            _ => Ok(Nil)
+        }
+    } else {
+        error_msg!("readline expects a string as prompt!")
+    }
+}
+
+fn vals(args: Args) -> MalRet {
+    validate_args(args, 1, "vals")?;
+    if let HashMap(ref map,_) = args[0] {
+        Ok(list!(map.values().map(|x| x.clone()).collect::<Vec<_>>()))
+    } else {
+        error_msg!("keys expects a map!")
+    }
+}
+
+fn keys(args: Args) -> MalRet {
+    validate_args(args, 1, "keys")?;
+    if let HashMap(ref map,_) = args[0] {
+        Ok(list!(map.keys().map(|x| {
+            if x.starts_with('\u{29E}') {
+                keyword!(x)
+            } else {
+                string!(x)
+            }
+        }).collect::<Vec<_>>()))
+    } else {
+        error_msg!("keys expects a map!")
+    }
+}
+
+fn contains(args:Args) -> MalRet {
+    validate_args(args, 2, "contains?")?;
+    match (&args[0], &args[1]) {
+        (HashMap(map,_), MalString(key) | Keyword(key)) => {
+            Ok(Bool(map.contains_key(&(**key))))
+        }
+        _ => error_msg!("get expects a map and a valid key type!")
+    }
 }
 
 fn symbol(args:Args) -> MalRet {
     validate_args(args, 1, "symbol")?;
-    if let MalType::String(ref str) = args[0] {
+    if let MalString(ref str) = args[0] {
         Ok(symbol!((**str).clone()))
     } else {
         error_msg!("symbol expects a string!")
@@ -82,16 +261,18 @@ fn symbol(args:Args) -> MalRet {
 
 fn keyword(args:Args) -> MalRet {
     validate_args(args, 1, "keyword")?;
-    if let MalType::String(ref str) = args[0] {
-        Ok(symbol!(format!("{}{}", '\u{29E}', (**str).clone())))
-    } else {
-        error_msg!("keyword expects a string!")
+    match args[0] {
+        MalString(ref str) => {
+            Ok(keyword!(format!("{}{}", '\u{29E}', (**str).clone())))
+        }
+        Keyword(ref k) => Ok(keyword!((**k).clone())),
+        _ => error_msg!("keyword expects a string!")
     }
 }
 
 fn is_keyword(args:Args) -> MalRet {
     validate_args(args, 1, "keyword?")?;
-    if let MalType::Keyword(_) = args[0] {
+    if let Keyword(_) = args[0] {
         Ok(Bool(true))
     } else {
         Ok(Bool(false))
@@ -101,7 +282,7 @@ fn is_keyword(args:Args) -> MalRet {
 
 fn is_sequential(args: Args) -> MalRet {
     validate_args(args, 1, "sequential?")?;
-    if let Vector(_) | List(_) = args[0] {
+    if let Vector(_,_) | List(_,_) = args[0] {
         Ok(Bool(true))
     } else {
         Ok(Bool(false))
@@ -118,7 +299,7 @@ fn vector(args: Args) -> MalRet {
 
 fn is_vector(args: Args) -> MalRet {
     validate_args(args, 1, "vector?")?;
-    if let Vector(_) = args[0] {
+    if let Vector(_,_) = args[0] {
         Ok(Bool(true))
     } else {
         Ok(Bool(false))
@@ -136,40 +317,74 @@ fn hash_map(args: Args) -> MalRet {
     );
     let mut map_iter = args.iter();
     while let Some(val) = map_iter.next() {
-        if let MalType::String(key) | MalType::Keyword(key) = val {
+        if let MalString(key) | Keyword(key) = val {
             map.insert((**key).clone(), map_iter.next().unwrap().deep_copy());
         } else {
             return error_msg!("hashmap expects key to be string or keyword!");
         }
     }
-    Ok(MalType::HashMap(Rc::new(map)))
+    Ok(map!(map))
 }
 
 fn is_map(args:Args) -> MalRet {
     validate_args(args, 1, "map?")?;
-    if let MalType::HashMap(_) = args[0] {
+    if let HashMap(_,_) = args[0] {
         Ok(Bool(true))
     } else {
         Ok(Bool(false))
     }
 }
 
+fn get(args: Args) -> MalRet {
+    validate_args(args, 2, "get")?;
+    match (&args[0], &args[1]) {
+        (HashMap(map,_), MalString(key) | Keyword(key)) => {
+            if let Some(val) = map.get(&(**key)) {
+                Ok(val.clone())
+            } else {
+                Ok(Nil)
+            }
+        }
+        (Nil, _) => Ok(Nil),
+        _ => error_msg!("get expects a map and a valid key type!")
+    }
+}
+
+fn dissoc(args:Args) -> MalRet{
+    validate_args_at_least(args, 1, "dissoc")?;
+    if let HashMap(ref map,_) = args[0] {
+        if args.len() == 1 { return Ok(args[0].deep_copy()) }
+        let mut new_map = (**map).clone();
+        for arg in args[1..].iter() {
+            if let Keyword(key) | MalString(key) = arg {
+                new_map.remove(&(**key));
+            } else {
+                return error_msg!("dissoc expects a string or keyword as key!")
+            }
+        }
+        Ok(map!(new_map))
+    } else {
+        error_msg!("dissoc expects a hashmap!")
+    }
+}
+
 fn assoc(args: Args) -> MalRet {
     validate_args_at_least(args, 1, "assoc")?;
-    if let MalType::HashMap(ref map) = args[0] {
-        let mut new_map = (**map).clone();
+    if let HashMap(ref map,_) = args[0] {
+        if args.len() == 1 { return Ok(args[0].deep_copy()) }
         if (args.len()-1) % 2 == 0 {
+            let mut new_map = (**map).clone();
             new_map.reserve((args.len() - 1) / 2);
             let mut map_iter = args.iter();
             map_iter.next();
             while let Some(val) = map_iter.next() {
-                if let MalType::String(key) | MalType::Keyword(key) = val {
+                if let MalString(key) | Keyword(key) = val {
                     new_map.insert((**key).clone(), map_iter.next().unwrap().deep_copy());
                 } else {
                     return error_msg!("hashmap expects key to be string or keyword!");
                 }
             }
-            Ok(MalType::HashMap(Rc::new(new_map)))
+            Ok(map!(new_map))
         } else {
             error_msg!("assoc expected an even amoun of keys and valuse!")
         }
@@ -218,7 +433,7 @@ fn is_symbol(args:Args) -> MalRet {
 fn map(args: Args) -> MalRet {
     validate_args(args, 2, "map")?;
     match (&args[0], &args[1]) {
-        (Lambda(f), List(seq) | Vector(seq)) => {
+        (Lambda(f,_), List(seq,_) | Vector(seq,_)) => {
             let mut lst = Vec::with_capacity(seq.len());
             let (mut ast, mut env);
             for el in seq.iter() {
@@ -227,7 +442,7 @@ fn map(args: Args) -> MalRet {
             }
             Ok(list!(lst))
         }
-        (Builtin(f), List(seq) | Vector(seq)) => {
+        (Builtin(f,_), List(seq,_) | Vector(seq,_)) => {
             let mut lst = Vec::with_capacity(seq.len());
             for el in seq.iter() {
                 lst.push(f(&[el.clone()])?);
@@ -248,7 +463,7 @@ fn apply(args:Args) -> MalRet {
     validate_args_at_least(args, 2, "apply")?;
     let last = args.len()-1;
     match (&args[0], &args[args.len()-1]) {
-        (Lambda(f), List(seq) | Vector(seq)) => {
+        (Lambda(f,_), List(seq,_) | Vector(seq,_)) => {
             let (ast, mut env);
             if args.len() == 2 {
                 (ast, env) = f(&seq[..])?;
@@ -257,7 +472,7 @@ fn apply(args:Args) -> MalRet {
             }
             eval(&ast, &mut env)
         }
-        (Builtin(f), List(seq) | Vector(seq)) => {
+        (Builtin(f,_), List(seq,_) | Vector(seq,_)) => {
             if args.len() == 2 {
                 f(&seq[..])
             } else {
@@ -271,7 +486,7 @@ fn apply(args:Args) -> MalRet {
 fn nth(args: Args) -> MalRet {
     validate_args(args, 2, "nth")?;
     match (&args[0], &args[1]) {
-        (List(ref seq) | Vector(ref seq), Number(index))
+        (List(ref seq,_) | Vector(ref seq, _), Number(index))
             if seq.len() > *index as usize => {
             Ok(seq[*index as usize].clone())
         }
@@ -285,11 +500,11 @@ fn nth(args: Args) -> MalRet {
 fn first(args: Args) -> MalRet {
     validate_args(args, 1, "first")?;
     match args[0] {
-        List(ref seq) | Vector(ref seq)
+        List(ref seq,_) | Vector(ref seq, _)
             if !seq.is_empty() => {
             Ok(seq[0].clone())
         }
-        List(ref seq) | Vector(ref seq)
+        List(ref seq,_) | Vector(ref seq, _)
             if seq.is_empty() => {
             Ok(Nil)
         }
@@ -304,11 +519,11 @@ fn first(args: Args) -> MalRet {
 fn rest(args: Args) -> MalRet {
     validate_args(args, 1, "first")?;
     match args[0] {
-        List(ref seq) | Vector(ref seq)
+        List(ref seq,_) | Vector(ref seq, _)
             if !seq.is_empty() => {
             Ok(list![seq[1..].to_vec()])
         }
-        List(ref seq) | Vector(ref seq)
+        List(ref seq,_) | Vector(ref seq, _)
             if seq.is_empty() => {
             Ok(list![])
         }
@@ -320,8 +535,8 @@ fn rest(args: Args) -> MalRet {
 fn vec(args:Args) -> MalRet {
     validate_args(args, 1, "vec")?;
     match args[0] {
-        List(ref v) => Ok(MalType::Vector(v.clone())),
-        Vector(_) => Ok(args[0].clone()),
+        List(ref v,_) => Ok(MalType::Vector(v.clone(), Rc::new(Nil))),
+        Vector(_,_) => Ok(args[0].clone()),
         _ => error_msg!("vec can aonly be called with sequence tpyes!")
     }
 }   
@@ -329,7 +544,7 @@ fn vec(args:Args) -> MalRet {
 fn swap(args:Args) -> MalRet{
     validate_args_at_least(args, 2, "swap!")?;
     match (&args[0], &args[1]) {
-        (Atom(a), Lambda(f)) => {
+        (Atom(a), Lambda(f,_)) => {
             let (ast, mut env) = f(&[
                 &[(**a).borrow().clone()],
                 &args[2..]
@@ -338,7 +553,7 @@ fn swap(args:Args) -> MalRet{
             a.replace(new_val.deep_copy());
             Ok(new_val)
         }
-        (Atom(a), Builtin(f)) => {
+        (Atom(a), Builtin(f,_)) => {
             let new_val = f(&[
                 &[(**a).borrow().clone()],
                 &args[2..]
@@ -353,7 +568,7 @@ fn swap(args:Args) -> MalRet{
 fn concat(args: Args) -> MalRet {
     let mut size = 0usize;
     for arg in args.iter() {
-        if let List(ref seq) | Vector(ref seq) = arg {
+        if let List(ref seq,_) | Vector(ref seq, _) = arg {
             size += seq.len();
         } else {
             return error_msg!("concat needs a lists or vectors!");
@@ -363,7 +578,7 @@ fn concat(args: Args) -> MalRet {
     let mut new_lst = Vec::with_capacity(size);
 
     for arg in args.iter() {
-        if let List(ref seq) | Vector(ref seq)  = arg {
+        if let List(ref seq,_) | Vector(ref seq, _)  = arg {
             new_lst.append(&mut (**seq).clone());
        }
     }
@@ -371,7 +586,7 @@ fn concat(args: Args) -> MalRet {
 }
 
 fn cons(args:Args) -> MalRet {
-    if let List(ref seq) | Vector(ref seq) = args[1] {
+    if let List(ref seq,_) | Vector(ref seq, _) = args[1] {
         let mut new_seq = (**seq).clone();
         new_seq.insert(0, args[0].clone());
         Ok(list!(new_seq))
@@ -411,7 +626,7 @@ fn atom(args: Args) -> MalRet {
 
 fn slurp(args: Args) -> MalRet {
     validate_args(args, 1, "slurp")?;
-    if let MalType::String(ref filename) = args[0] {
+    if let MalString(ref filename) = args[0] {
         let contents = match fs::read_to_string((**filename).to_owned()) {
             Ok(contents) => contents,
             Err(err) =>  return error_msg!(err)
@@ -424,7 +639,7 @@ fn slurp(args: Args) -> MalRet {
 
 fn read_string(args: Args) -> MalRet {
     validate_args(args, 1, "read-string")?;
-    if let MalType::String(ref str) = args[0] { 
+    if let MalString(ref str) = args[0] { 
         read_str((**str).to_owned())
     } else {
         error_msg!("read-string expected string!")
@@ -452,7 +667,7 @@ fn eq(args: Args) -> MalRet {
 fn count(args: Args) -> MalRet {
     validate_args(args, 1, "count")?;
     match args[0] {
-        List(ref seq) | Vector(ref seq) => Ok(Number(seq.len() as i64)),
+        List(ref seq,_) | Vector(ref seq, _) => Ok(Number(seq.len() as i64)),
         Nil => Ok(Number(0)),
         _=> error_msg!("only a seq can be counted!")
     }
@@ -460,14 +675,14 @@ fn count(args: Args) -> MalRet {
 fn is_empty(args: Args) -> MalRet {
     validate_args(args, 1, "empty?")?;
     match args[0] {
-        List(ref seq) | Vector(ref seq) => Ok(Bool(seq.is_empty())),
+        List(ref seq,_) | Vector(ref seq, _) => Ok(Bool(seq.is_empty())),
         _=> error_msg!("only a seq can be empty!")
     }
 }
 
 fn is_list(args: Args) -> MalRet {
     validate_args(args, 1, "list?")?;
-    Ok(Bool(if let List(_) = args[0] { true } else { false }))
+    Ok(Bool(if let List(_,_) = args[0] { true } else { false }))
 }
 
 fn list(args: Args) -> MalRet {

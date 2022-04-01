@@ -2,7 +2,7 @@ use std::{collections::VecDeque, rc::Rc};
 use fnv::FnvHashMap;
 use lazy_static::lazy_static;
 use regex::Regex;
-use crate::{types::*, symbol, list, error_msg};
+use crate::{types::*, symbol, list, map, vector, error_msg};
 
 pub struct TokenStream {
     tokens: VecDeque<String>, 
@@ -72,7 +72,7 @@ fn read_map(tokens: &mut TokenStream) -> MalRet {
 
     tokens.pop(); //pop delim "}"
 
-    Ok(MalType::HashMap(Rc::new(map)))
+    Ok(map!(map))
 }
 
 fn read_sequence(tokens: &mut TokenStream, delimiter: &str) -> MalRet {
@@ -86,9 +86,9 @@ fn read_sequence(tokens: &mut TokenStream, delimiter: &str) -> MalRet {
         Some(_) => { 
             tokens.pop(); //pop delim 
             if delimiter == ")" {
-                Ok(MalType::List(Rc::new(seq)))
+                Ok(list!(seq))
             } else {
-                Ok(MalType::Vector(Rc::new(seq)))
+                Ok(vector!(seq))
             }
         }
         None => error_msg!(format!("unbalanced sequence expected: {}", delimiter))
@@ -140,7 +140,7 @@ fn read_string(tokens: &mut TokenStream) -> MalRet {
     token.remove(0);
 
     if !token.ends_with('"') {
-        return error_msg!("invalid string literal: must end with '\"' ");
+        return error_msg!("unbalanced invalid string literal: must end with '\"' ");
     }
 
     let mut it = token.char_indices();
@@ -161,7 +161,7 @@ fn read_string(tokens: &mut TokenStream) -> MalRet {
             mal_str.push(el);
         }
     }
-    error_msg!("invalid string literal")
+    error_msg!("unbalanced: invalid string literal")
 }
 
 fn tokenize(input: String) -> VecDeque<String>{

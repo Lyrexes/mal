@@ -16,28 +16,28 @@ fn main() {
 
     let mut repl_env = EnvTable::default();
 
-    repl_env.insert("+".to_string(),Builtin(|args| { 
+    repl_env.insert("+".to_string(), builtin!(|args| { 
         match (&args[0],  &args[1]) {
             (Number(lhs), Number(rhs)) => Ok(Number(lhs + rhs)),
             _ => error_msg!("invalid add".to_string())
         }
     }));
     
-    repl_env.insert("-".to_string(), Builtin(|args| { 
+    repl_env.insert("-".to_string(), builtin!(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs - rhs)),
             _ => error_msg!("EOF invalid subtraction".to_string())
         }
     }));
 
-    repl_env.insert("*".to_string(), Builtin(|args| { 
+    repl_env.insert("*".to_string(), builtin!(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) => Ok(MalType::Number(lhs * rhs)),
             _ => error_msg!("Eof invalid mutltiplication".to_string())
         }
     }));
 
-    repl_env.insert("/".to_string(), Builtin(|args| { 
+    repl_env.insert("/".to_string(), builtin!(|args| { 
         match (&args[0], &args[1]) {
             (Number(lhs), MalType::Number(rhs)) =>
                  Ok(Number(lhs.checked_div(*rhs)
@@ -78,10 +78,10 @@ fn read(string: String) -> MalRet  {
 
 fn eval(ast: &MalType, env: &EnvTable) -> MalRet {
     match ast {
-        List(list) => {
+        List(list,_) => {
             if list.is_empty() { return Ok(ast.clone()) }
             match eval_ast(ast, env)? {
-                List(eval_list) => return Ok(eval_list[0].apply(&eval_list[1..])?),
+                List(eval_list,_) => return Ok(eval_list[0].apply(&eval_list[1..])?),
                 _ => return error_msg!("expected list!"),
             }
         }
@@ -96,18 +96,18 @@ fn eval_ast(ast: &MalType, env: &EnvTable) -> MalRet {
              .ok_or(MalError::Message("symbol not found!".to_string()))?
              .clone())
         }
-        List(list) | Vector(list) => {
+        List(list,_) | Vector(list,_) => {
             let mut new_seq = Vec::<MalType>::with_capacity(list.len());
             for l in (*list).iter() {
                 new_seq.push(eval(l, env)?);
             }
-            if let List(_) = ast {
+            if let List(_,_) = ast {
                 Ok(list!(new_seq))
             } else {
                 Ok(vector!(new_seq))
             }
         }
-        HashMap(map) => {
+        HashMap(map,_) => {
             let mut new_map = std::collections::HashMap::with_capacity_and_hasher(
             map.len(),
         fnv::FnvBuildHasher::default()

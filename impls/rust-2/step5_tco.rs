@@ -3,7 +3,7 @@ use std::{rc::Rc};
 use printer::pr_str;
 use reader::read_str;
 use rustyline::error::ReadlineError;
-use types::{MalType::{Number,Symbol, Vector,List, Lambda, Builtin, HashMap, Nil, Bool},
+use types::{MalType::{Symbol, Vector,List, Lambda, HashMap, Nil, Bool},
              MalRet, MalType, MalError};
 use crate::core::{get_ns, validate_args, validate_args_at_least, validate_arg_bounds};
 mod reader;
@@ -60,7 +60,7 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
     let mut curr_ast = ast.clone();
     let mut curr_env = env.clone();
     loop {
-        if let List(ref list) = curr_ast {
+        if let List(ref list,_) = curr_ast {
             if list.is_empty() { return Ok(curr_ast.clone()) }
             let first = &list[0];
             match first {
@@ -81,8 +81,8 @@ fn eval(ast: &MalType, env: &mut Env) -> MalRet {
                 },
                 Symbol(s) if **s == "fn*"  => return create_lambda(&list[1..], &curr_env),
                 _ => {
-                    if let List(eval_list) = eval_ast(&curr_ast, &mut curr_env)? {
-                        if let Lambda(ref l) = eval_list[0] {
+                    if let List(eval_list,_) = eval_ast(&curr_ast, &mut curr_env)? {
+                        if let Lambda(ref l,_) = eval_list[0] {
                             (curr_ast, curr_env) = l(&eval_list[1..])?;
                             continue
                         }
@@ -104,18 +104,18 @@ fn eval_ast(ast: &MalType, env: &mut Env) -> MalRet {
              .ok_or(MalError::Message(format!("{} not found!", sym.to_string())))?
              .clone())
         }
-        List(list) | Vector(list) => {
+        List(list,_) | Vector(list,_) => {
             let mut new_seq = Vec::<MalType>::with_capacity(list.len());
             for l in (*list).iter() {
                 new_seq.push(eval(l, env)?);
             }
-            if let List(_) = ast {
+            if let List(_,_) = ast {
                 Ok(list!(new_seq))
             } else {
                 Ok(vector!(new_seq))
             }
         }
-        HashMap(map) => {
+        HashMap(map,_) => {
             let mut new_map = std::collections::HashMap::with_capacity_and_hasher(
             map.len(),
         fnv::FnvBuildHasher::default()
@@ -147,7 +147,7 @@ fn apply_let(args: &[MalType], env: &Env) -> Result<(MalType, Env), MalError> {
     validate_args(args, 2, "let*")?;
     let mut let_env = Env::new_env(Some(env.clone()));
     match args[0] {
-        List(ref binds) | Vector(ref binds) => {
+        List(ref binds,_) | Vector(ref binds,_) => {
             if binds.len() % 2 != 0 {
                 return error_msg!("let bindings must be balanced!")
             }
@@ -209,7 +209,7 @@ fn apply_if(args: &[MalType], env: &mut Env) -> MalRet {
 
 fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
     match args[0] {
-        List(ref params) | Vector(ref params) => {
+        List(ref params,_) | Vector(ref params,_) => {
 
             let all_sym = params.iter()
              .all(|x| if let Symbol(_) = x {true} else {false});
@@ -242,7 +242,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
                     lambda_env.insert(&lambda_params[..vari_i], &arguments[..vari_i]);
                     lambda_env.set((*lambda_params[vari_i]).clone(), list![arguments[vari_i..].to_vec()]);
                     Ok((body.clone(),  lambda_env.clone()))
-                })))
+                }), Rc::new(Nil)))
             }
             else {
                 Ok(Lambda(Rc::new(move |arguments: &[MalType]| -> Result<(MalType,Env), MalError> {
@@ -256,7 +256,7 @@ fn create_lambda(args: &[MalType], env: &Env) -> MalRet {
                         &*lambda_params,
                         arguments 
                     )))
-                })))
+                }), Rc::new(Nil)))
             }
         }
         _ => error_msg!(

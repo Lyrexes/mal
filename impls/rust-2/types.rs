@@ -5,19 +5,24 @@ use crate::env::Env;
 
 #[derive(Clone)]
 pub enum MalType {
-    HashMap(Rc<FnvHashMap<String, MalType>>),
-    Vector(Rc<Vec<MalType>>),
-    List(Rc<Vec<MalType>>),
+    HashMap(Rc<FnvHashMap<String, MalType>>, Rc<MalType>),
+    Vector(Rc<Vec<MalType>>, Rc<MalType>),
+    List(Rc<Vec<MalType>>, Rc<MalType>),
     Symbol(Rc<String>),
     String(Rc<String>),
     Keyword(Rc<String>),
-    Builtin(fn(Args)->MalRet),
-    Lambda(Rc<dyn Fn(Args)->Result<(MalType, Env),MalError>>),
-    Macro(Rc<dyn Fn(Args)->Result<(MalType, Env),MalError>>),
+    Builtin(fn(Args)->MalRet, Rc<MalType>),
+    Lambda(Rc<dyn Fn(Args)->Result<(MalType, Env),MalError>>, Rc<MalType>),
+    Macro(Rc<dyn Fn(Args)->Result<(MalType, Env),MalError>>, Rc<MalType>),
     Atom(Rc<RefCell<MalType>>),
     Number(i64),
     Bool(bool),
     Nil
+}
+
+#[macro_export]
+macro_rules! builtin {
+    ($func:expr) => { Builtin($func, Rc::new(MalType::Nil)) }
 }
 
 #[macro_export]
@@ -53,11 +58,11 @@ macro_rules! string {
 #[macro_export]
 macro_rules! vector {
     ($el:expr) => {
-        MalType::Vector(Rc::new($el))
+        MalType::Vector(Rc::new($el), Rc::new(MalType::Nil))
     };
     ($($el:expr),*) => {{
         let vec:Vec<MalType> = vec![$($el),*];
-        MalType::Vector(Rc::new(vec))
+        MalType::Vector(Rc::new(vec), Rc::new(MalType::Nil))
     }}
 }
 
@@ -75,7 +80,7 @@ macro_rules! map {
         )
     };
     ($el:expr) => {
-        MalType::HashMap(Rc::new($el))
+        MalType::HashMap(Rc::new($el), Rc::new(MalType::Nil))
     };
     ($($key:expr => $val:expr),*) => {{
         let size = count!($($key)*);
@@ -94,11 +99,11 @@ macro_rules! map {
 #[macro_export]
 macro_rules! list {
     ($el:expr) => {
-        MalType::List(Rc::new($el))
+        MalType::List(Rc::new($el), Rc::new(MalType::Nil))
     };
     ($($el:expr),*) => {{
         let vec:Vec<MalType> = vec![$($el),*];
-        MalType::List(Rc::new(vec))
+        MalType::List(Rc::new(vec), Rc::new(MalType::Nil))
     }}
 }
 impl PartialEq for MalType {
@@ -110,9 +115,9 @@ impl PartialEq for MalType {
             (MalType::Number(lhs), MalType::Number(rhs)) => lhs == rhs,
             (MalType::Bool(lhs), MalType::Bool(rhs)) => lhs == rhs,
             (MalType::Keyword(lhs), MalType::Keyword(rhs)) => lhs == rhs,
-            (MalType::HashMap(lhs), MalType::HashMap(rhs)) => lhs == rhs,
-            (MalType::List(lhs) | MalType::Vector(lhs),
-             MalType::List(rhs) | MalType::Vector(rhs)) => lhs == rhs,
+            (MalType::HashMap(lhs, _), MalType::HashMap(rhs,_)) => lhs == rhs,
+            (MalType::List(lhs,_) | MalType::Vector(lhs,_),
+             MalType::List(rhs,_) | MalType::Vector(rhs,_)) => lhs == rhs,
             _ => false
         }
     }
@@ -123,14 +128,14 @@ impl Eq for MalType {}
 impl MalType {
     pub fn apply(&self, args: Args) -> MalRet {
         match self {
-            MalType::Builtin(b) => b(args),
+            MalType::Builtin(b,_) => b(args),
             _ => error_msg!("Only can apply function types!")
         }
     }
 
     pub fn is_form_call(&self, form: &str, args:usize) -> bool {
         match self {
-            MalType::List(lst) if lst.len() == args+1 => {
+            MalType::List(lst,_) if lst.len() == args+1 => {
                 if let MalType::Symbol(ref sym) = lst[0] {
                     **sym == form
                 } else {
@@ -142,7 +147,7 @@ impl MalType {
     }
     pub fn nth(&self, i:usize) -> MalType {
         match self {
-            MalType::List(lst) | MalType::Vector(lst) => {
+            MalType::List(lst,_) | MalType::Vector(lst,_) => {
                 if lst.len() <= i {
                     panic!("nth: index out of bounds!")
                 } else {
@@ -155,24 +160,20 @@ impl MalType {
 
     pub fn deep_copy(&self) -> MalType {
         match self {
-            MalType::HashMap(m) => MalType::HashMap(Rc::new((**m).clone())),
-            MalType::Vector(v) =>  vector!((**v).clone()),
-            MalType::List(l) => list!((**l).clone()),
+            MalType::HashMap(m, me) => MalType::HashMap(Rc::new((**m).clone()), (*me).clone()),
+            MalType::Vector(v, me) =>  MalType::Vector(Rc::new((**v).clone()), (*me).clone()),
+            MalType::List(l, me) => MalType::List(Rc::new((**l).clone()), (*me).clone()),
             MalType::Symbol(s) => symbol!((**s).clone()),
             MalType::String(s) => string!((**s).clone()),
             MalType::Keyword(s) => keyword!((**s).clone()),
-            MalType::Builtin(_) | MalType::Lambda(_) | MalType::Macro(_) => self.clone(),
+            MalType::Builtin(_,_) | MalType::Lambda(_,_) | MalType::Macro(_,_) => self.clone(),
             MalType::Atom(a) => atom!((**a).borrow().deep_copy()),
             MalType::Number(n) => MalType::Number(*n),
             MalType::Bool(b) => MalType::Bool(*b),
             MalType::Nil => self.clone(),
         }
     }
-
-    pub fn is_same_type(&self, other: &Self) -> bool {
-        std::mem::discriminant(self) == std::mem::discriminant(other)
-    }
-}
+} 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MalError {
@@ -186,19 +187,19 @@ pub type Args<'a> = &'a[MalType];
 impl fmt::Debug for MalType {
     fn fmt<'a>(&'a self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MalType::Builtin(_) |
-             MalType::Lambda(_) | 
-             MalType::Macro(_)  => {
+            MalType::Builtin(_,_) |
+             MalType::Lambda(_,_) | 
+             MalType::Macro(_,_)  => {
                 f.debug_tuple("Function")
                  .finish()
             },
-            MalType::HashMap(h) => {
+            MalType::HashMap(h,_) => {
                 f.debug_map()
                  .entries(h.iter())
                  .finish()
             },
-            MalType::Vector(l)
-             | MalType::List(l) => {
+            MalType::Vector(l,_)
+             | MalType::List(l,_) => {
                f.debug_list()
                 .entries(l.iter())
                 .finish() 
